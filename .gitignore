@@ -1,0 +1,47 @@
+# macOS
+.DS_Store
+
+# Secrets and environment files
+.env
+.env.*
+!.env.example
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Node / frontend
+node_modules/
+dist/
+build/
+.next/
+coverage/
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
+.cache/
+
+# Local databases / generated data
+*.db
+*.sqlite
+*.sqlite3
+
+# Infrastructure local state
+.terraform/
+*.tfstate
+*.tfstate.*
