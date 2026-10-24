@@ -45,3 +45,6 @@ temp/
 .terraform/
 *.tfstate
 *.tfstate.*
+
+# Local coding assistant instructions
+CLAUDE.md
