@@ -717,3 +717,151 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Day 6 — Investigation Console */
+.run-console {
+  margin-bottom: 24px;
+}
+
+.run-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) auto;
+  grid-template-areas:
+    "agent-label incident-label ."
+    "agent-input incident-input submit";
+  gap: 9px 16px;
+  align-items: end;
+  padding: 0 24px 26px;
+}
+
+.run-form label {
+  color: #b8c7e0;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.run-form label[for="run-agent"] {
+  grid-area: agent-label;
+}
+
+.run-form label[for="run-incident"] {
+  grid-area: incident-label;
+}
+
+.run-form select,
+.run-form input {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  background: #0b1424;
+  color: #f3f6ff;
+  border: 1px solid #34435e;
+  border-radius: 9px;
+  padding: 11px 13px;
+  font: inherit;
+  font-size: 13px;
+}
+
+.run-form select {
+  grid-area: agent-input;
+  cursor: pointer;
+}
+
+.run-form input {
+  grid-area: incident-input;
+  color: #b8c7e0;
+}
+
+.run-form > .button-primary {
+  grid-area: submit;
+  min-height: 44px;
+}
+
+.run-form select:focus-visible,
+.run-form input:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+.run-form select:disabled,
+.run-form button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.run-console > .alert {
+  margin: 0 24px 24px;
+}
+
+.run-details {
+  border-top: 1px solid var(--border);
+  background: #0e192b;
+}
+
+.run-details .panel-heading p {
+  overflow-wrap: anywhere;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+}
+
+.run-information {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  padding: 0 24px 26px;
+}
+
+.run-information p {
+  margin: 0;
+  padding: 15px;
+  background: #17243b;
+  border: 1px solid #293b57;
+  border-radius: 9px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.run-information p svg {
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 5px;
+  color: var(--blue);
+}
+
+.run-information strong {
+  color: #eef3ff;
+  font-weight: 650;
+}
+
+@media (max-width: 950px) {
+  .run-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-areas:
+      "agent-label incident-label"
+      "agent-input incident-input"
+      "submit submit";
+  }
+}
+
+@media (max-width: 600px) {
+  .run-form {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "agent-label"
+      "agent-input"
+      "incident-label"
+      "incident-input"
+      "submit";
+  }
+
+  .run-information {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .run-details .panel-heading {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

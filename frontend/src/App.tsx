@@ -14,12 +14,30 @@ import {
   X,
 } from 'lucide-react'
 import { listAgents, registerAgent, type Agent } from './api'
+import RunConsole from './components/RunConsole'
 import './App.css'
 
-type View = 'overview' | 'agents'
+type View = 'overview' | 'agents' | 'runs'
 
 function App() {
-  const [view, setView] = useState<View>('overview')
+  const [view, setView] = useState<View>(() => {
+    try {
+      const saved = sessionStorage.getItem('agentops:active-view')
+      return saved === 'agents' || saved === 'runs'
+        ? saved
+        : 'overview'
+    } catch {
+      return 'overview'
+    }
+  })
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem('agentops:active-view', view)
+    } catch {
+      // Navigation remains functional if storage is unavailable.
+    }
+  }, [view])
   const [agents, setAgents] = useState<Agent[]>([])
   const [hasMore, setHasMore] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -152,10 +170,15 @@ function App() {
             <Bot size={18} /> Agent Registry
           </button>
 
+          <button
+            type="button"
+            className={view === 'runs' ? 'nav-item selected' : 'nav-item'}
+            onClick={() => setView('runs')}
+          >
+            <Activity size={18} /> Runs & Traces
+          </button>
+
           <div className="sidebar-label nav-divider">COMING NEXT</div>
-          <div className="nav-item unavailable">
-            <Activity size={18} /> Runs & Traces <span>SOON</span>
-          </div>
           <div className="nav-item unavailable">
             <ShieldCheck size={18} /> Policy Center <span>SOON</span>
           </div>
@@ -176,7 +199,7 @@ function App() {
 
       <main className="main-content">
         <header className="topbar">
-          <div className="breadcrumb">Workspace <span>/</span> {view === 'overview' ? 'Overview' : 'Agent Registry'}</div>
+          <div className="breadcrumb">Workspace <span>/</span> {view === 'overview' ? 'Overview' : view === 'agents' ? 'Agent Registry' : 'Runs & Traces'}</div>
           <div className={`connection ${connected ? 'online' : ''}`}>
             <span className="connection-dot" />
             {connected ? 'API Connected' : loading ? 'Connecting...' : 'API Disconnected'}
@@ -187,11 +210,13 @@ function App() {
           <section className="page-heading">
             <div>
               <div className="eyebrow">AGENT INFRASTRUCTURE</div>
-              <h1>{view === 'overview' ? 'Control Plane Overview' : 'Agent Registry'}</h1>
+              <h1>{view === 'overview' ? 'Control Plane Overview' : view === 'agents' ? 'Agent Registry' : 'Runs & Traces'}</h1>
               <p>
                 {view === 'overview'
                   ? 'Discover, observe, evaluate and secure your AI agents.'
-                  : 'Manage registered agents backed by your PostgreSQL database.'}
+                  : view === 'agents'
+                    ? 'Manage registered agents backed by your PostgreSQL database.'
+                    : 'Submit durable investigations and inspect real execution status.'}
               </p>
             </div>
             <div className="heading-actions">
@@ -270,6 +295,7 @@ function App() {
             </>
           )}
 
+          {view !== 'runs' && (
           <section className="panel">
             <div className="panel-heading">
               <div>
@@ -323,6 +349,9 @@ function App() {
               <p className="pagination-note">Showing the first 100 agents. Additional pages are available through the API.</p>
             )}
           </section>
+          )}
+
+          {view === 'runs' && <RunConsole agents={agents} />}
 
           {view === 'overview' && (
             <section className="roadmap-panel">

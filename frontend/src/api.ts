@@ -44,3 +44,60 @@ export async function registerAgent(
 
   return parseResponse<Agent>(response)
 }
+
+
+export type AgentRunStatus =
+  | 'queued'
+  | 'running'
+  | 'awaiting_approval'
+  | 'completed'
+  | 'failed'
+  | 'cancelled'
+
+export interface AgentRunAccepted {
+  run_id: string
+  agent_id: string
+  incident_id: string
+  status: AgentRunStatus
+  created_at: string
+}
+
+export interface AgentRunDetail extends AgentRunAccepted {
+  agent_config_version: number
+  started_at: string | null
+  finished_at: string | null
+  result_summary: string | null
+  error: string | null
+}
+
+export async function submitAgentRun(
+  agentId: string,
+  incidentId: string,
+  idempotencyKey: string,
+): Promise<AgentRunAccepted> {
+  const response = await fetch(
+    `/api/v1/agents/${encodeURIComponent(agentId)}/runs`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Idempotency-Key': idempotencyKey,
+      },
+      body: JSON.stringify({ incident_id: incidentId }),
+    },
+  )
+
+  return parseResponse<AgentRunAccepted>(response)
+}
+
+export async function getAgentRun(
+  runId: string,
+  signal?: AbortSignal,
+): Promise<AgentRunDetail> {
+  const response = await fetch(
+    `/api/v1/runs/${encodeURIComponent(runId)}`,
+    { signal },
+  )
+
+  return parseResponse<AgentRunDetail>(response)
+}
