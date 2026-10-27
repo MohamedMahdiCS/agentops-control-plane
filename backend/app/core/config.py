@@ -10,3 +10,7 @@ class Settings(BaseSettings):
     )
 
     database_url: SecretStr
+
+    # Optional until authenticated operator endpoints are configured.
+    operator_token_sha256: SecretStr | None = None
+    operator_id: str | None = None

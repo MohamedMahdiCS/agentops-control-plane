@@ -1,4 +1,3 @@
-import asyncio
 from time import perf_counter
 
 from pydantic import ValidationError
@@ -15,6 +14,15 @@ from backend.app.services.run_checkpoints import save_run_checkpoint
 from backend.app.services.run_claims import ClaimedRun
 from backend.app.services.run_finalization import finalize_run
 from backend.app.services.run_leases import renew_run_lease
+from backend.app.services.tool_gateway import (
+    GatewayApprovalRequired,
+    GatewayDeniedError,
+    GatewayOwnershipError,
+    InvalidToolResultError,
+    ToolGateway,
+    ToolReportedTimeoutError,
+)
+from backend.app.simulator.faults import SimulatedRateLimitError, SimulatedToolError
 from backend.app.simulator.registry import invoke_tool
 
 ACTIVE_BUDGET_MS = 120_000
@@ -33,6 +41,53 @@ async def process_claimed_run(
     Unexpected programming errors propagate for investigation.
     """
     started = perf_counter()
+    gateway = ToolGateway(session_factory, claim, read_invoker=tool_invoker)
+
+    async def execute_gateway_step(state, timeout_seconds):
+        class DispatchRequested(Exception):
+            pass
+
+        request = None
+
+        def capture_request(name, arguments):
+            nonlocal request
+            request = (name, arguments)
+            raise DispatchRequested
+
+        # Run the existing checkpoint, sequence, retry and budget checks before
+        # authorizing or dispatching any tool.
+        try:
+            return execute_next_step(
+                claim.incident_id, state, tool_invoker=capture_request
+            )
+        except DispatchRequested:
+            pass
+
+        name, arguments = request
+        failure = None
+        try:
+            result = await gateway.invoke(
+                name,
+                arguments,
+                checkpoint=state,
+                active_elapsed_ms=elapsed_ms(),
+                timeout_seconds=timeout_seconds,
+            )
+        except InvalidToolResultError:
+            result = object()  # Existing checkpoint contract records invalid output.
+        except ToolReportedTimeoutError:
+            failure = TimeoutError("Tool timeout")
+            result = None
+        except (SimulatedRateLimitError, SimulatedToolError) as exc:
+            failure = exc
+            result = None
+
+        def replay_result(name, arguments):
+            if failure is not None:
+                raise failure
+            return result
+
+        return execute_next_step(claim.incident_id, state, tool_invoker=replay_result)
 
     def elapsed_ms() -> int:
         return claim.active_elapsed_ms + int((perf_counter() - started) * 1000)
@@ -96,15 +151,13 @@ async def process_claimed_run(
         total_budget_is_limiting = remaining_ms <= STEP_TIMEOUT_SECONDS * 1000
 
         try:
-            updated = await asyncio.wait_for(
-                asyncio.to_thread(
-                    execute_next_step,
-                    claim.incident_id,
-                    state,
-                    tool_invoker=tool_invoker,
-                ),
-                timeout=timeout_seconds,
-            )
+            updated = await execute_gateway_step(state, timeout_seconds)
+        except GatewayOwnershipError:
+            return False
+        except GatewayApprovalRequired:
+            return False
+        except GatewayDeniedError:
+            return await fail("TOOL_POLICY_DENIED")
         except TimeoutError:
             error_code = (
                 "EXECUTION_TIME_BUDGET"

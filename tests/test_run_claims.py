@@ -12,6 +12,10 @@ from backend.app.core.config import Settings
 from backend.app.core.session import create_session_factory
 from backend.app.models.agent import Agent
 from backend.app.models.agent_run import AgentRun
+from backend.app.models.approval_request import ApprovalRequest
+from backend.app.models.audit_event import AuditEvent
+from backend.app.models.policy_decision import PolicyDecision
+from backend.app.models.trace_span import TraceSpan
 from backend.app.services.run_checkpoints import save_run_checkpoint
 from backend.app.services.run_claims import claim_next_run
 from backend.app.services.run_finalization import finalize_run
@@ -60,6 +64,13 @@ def isolated_run():
 
     finally:
         with engine.begin() as connection:
+            connection.execute(
+                update(AgentRun)
+                .where(AgentRun.id == run_id)
+                .values(pending_approval_id=None)
+            )
+            for model in (ApprovalRequest, AuditEvent, PolicyDecision, TraceSpan):
+                connection.execute(delete(model).where(model.run_id == run_id))
             connection.execute(delete(AgentRun).where(AgentRun.id == run_id))
             connection.execute(delete(Agent).where(Agent.id == agent_id))
 
@@ -726,3 +737,685 @@ def test_worker_tool_timeout_fails_safely(
 
     # The worker must not schedule further diagnostic steps.
     assert executed_tools == ["get_incident"]
+
+
+# Day 9: Tool Gateway authorization and audit integration tests.
+
+from backend.app.runtime.contracts import InvestigationCheckpoint
+from backend.app.services.tool_gateway import (
+    GatewayApprovalRequired,
+    GatewayDeniedError,
+    ToolGateway,
+)
+from backend.app.simulator.registry import invoke_tool
+
+
+async def call_gateway_for_claim(
+    claim,
+    name,
+    arguments,
+    *,
+    read_invoker=invoke_tool,
+):
+    async_engine = create_async_engine(Settings().database_url.get_secret_value())
+    try:
+        factory = create_session_factory(async_engine)
+        gateway = ToolGateway(
+            factory,
+            claim,
+            read_invoker=read_invoker,
+        )
+        return await gateway.invoke(
+            name,
+            arguments,
+            checkpoint=InvestigationCheckpoint(next_step=0, tool_calls_used=0),
+            active_elapsed_ms=0,
+        )
+    finally:
+        await async_engine.dispose()
+
+
+def test_gateway_authorizes_and_audits_read_tool(isolated_run):
+    run_id, engine = isolated_run
+    claim = asyncio.run(claim_with_worker(run_id, "gateway-read-worker"))
+    assert claim is not None
+
+    calls = []
+
+    def tracked_invoker(name, arguments):
+        calls.append(name)
+        return invoke_tool(name, arguments)
+
+    observation = asyncio.run(
+        call_gateway_for_claim(
+            claim,
+            "get_incident",
+            {"incident_id": "INC-1042"},
+            read_invoker=tracked_invoker,
+        )
+    )
+
+    assert observation.incident_id == "INC-1042"
+    assert calls == ["get_incident"]
+
+    with engine.connect() as connection:
+        decision = connection.execute(
+            select(
+                PolicyDecision.decision,
+                PolicyDecision.reason_code,
+                PolicyDecision.executed,
+            ).where(PolicyDecision.run_id == run_id)
+        ).one()
+        events = (
+            connection.execute(
+                select(AuditEvent.event_type).where(AuditEvent.run_id == run_id)
+            )
+            .scalars()
+            .all()
+        )
+
+    assert decision.decision == "allow"
+    assert decision.reason_code == "READ_ONLY_V1"
+    assert decision.executed is True
+    assert "tool.authorization" in events
+    assert "tool.outcome" in events
+
+
+def test_gateway_denies_and_audits_unknown_tool(isolated_run):
+    run_id, engine = isolated_run
+    claim = asyncio.run(claim_with_worker(run_id, "gateway-deny-worker"))
+    assert claim is not None
+
+    calls = []
+
+    def tracked_invoker(name, arguments):
+        calls.append(name)
+        return invoke_tool(name, arguments)
+
+    with pytest.raises(GatewayDeniedError):
+        asyncio.run(
+            call_gateway_for_claim(
+                claim,
+                "unknown_tool",
+                {},
+                read_invoker=tracked_invoker,
+            )
+        )
+
+    assert calls == []
+
+    with engine.connect() as connection:
+        decision = connection.execute(
+            select(
+                PolicyDecision.decision,
+                PolicyDecision.reason_code,
+                PolicyDecision.executed,
+            ).where(PolicyDecision.run_id == run_id)
+        ).one()
+        events = (
+            connection.execute(
+                select(AuditEvent.event_type).where(AuditEvent.run_id == run_id)
+            )
+            .scalars()
+            .all()
+        )
+
+    assert decision.decision == "deny"
+    assert decision.reason_code == "UNKNOWN_TOOL"
+    assert decision.executed is False
+    assert "tool.authorization" in events
+    assert "tool.outcome" not in events
+
+
+def test_gateway_creates_approval_without_execution(isolated_run):
+    run_id, engine = isolated_run
+    claim = asyncio.run(claim_with_worker(run_id, "gateway-approval-worker"))
+    assert claim is not None
+
+    calls = []
+
+    def tracked_invoker(name, arguments):
+        calls.append(name)
+        return invoke_tool(name, arguments)
+
+    with pytest.raises(GatewayApprovalRequired):
+        asyncio.run(
+            call_gateway_for_claim(
+                claim,
+                "restart_service",
+                {
+                    "service_name": "payment-service",
+                    "reason": "Investigate database connection failures.",
+                },
+                read_invoker=tracked_invoker,
+            )
+        )
+
+    assert calls == []
+
+    with engine.connect() as connection:
+        run = connection.execute(
+            select(
+                AgentRun.status,
+                AgentRun.pending_approval_id,
+                AgentRun.lease_owner,
+            ).where(AgentRun.id == run_id)
+        ).one()
+
+        approval = connection.execute(
+            select(
+                ApprovalRequest.action,
+                ApprovalRequest.status,
+                ApprovalRequest.execution_status,
+            ).where(ApprovalRequest.run_id == run_id)
+        ).one()
+
+        decision = connection.execute(
+            select(
+                PolicyDecision.decision,
+                PolicyDecision.executed,
+            ).where(PolicyDecision.run_id == run_id)
+        ).one()
+
+        events = (
+            connection.execute(
+                select(AuditEvent.event_type).where(AuditEvent.run_id == run_id)
+            )
+            .scalars()
+            .all()
+        )
+
+    assert run.status == "awaiting_approval"
+    assert run.pending_approval_id is not None
+    assert run.lease_owner is None
+
+    assert approval.action == "restart_service"
+    assert approval.status == "pending"
+    assert approval.execution_status == "not_started"
+
+    assert decision.decision == "require_approval"
+    assert decision.executed is False
+
+    assert "tool.authorization" in events
+    assert "tool.approval_requested" in events
+
+
+# Day 9: Failure auditing and stale-worker security regression tests.
+
+from backend.app.services.tool_gateway import (
+    GatewayOwnershipError,
+    InvalidToolResultError,
+)
+
+
+def test_gateway_rejects_mismatched_observation_and_audits(isolated_run):
+    run_id, engine = isolated_run
+    claim = asyncio.run(claim_with_worker(run_id, "gateway-validation-worker"))
+    assert claim is not None
+
+    def mismatched_invoker(name, arguments):
+        result = invoke_tool(name, arguments)
+        return result.model_copy(update={"incident_id": "INC-9999"})
+
+    with pytest.raises(InvalidToolResultError):
+        asyncio.run(
+            call_gateway_for_claim(
+                claim,
+                "get_incident",
+                {"incident_id": "INC-1042"},
+                read_invoker=mismatched_invoker,
+            )
+        )
+
+    with engine.connect() as connection:
+        decision = connection.execute(
+            select(PolicyDecision.executed).where(PolicyDecision.run_id == run_id)
+        ).scalar_one()
+
+        outcome = connection.execute(
+            select(TraceSpan.safe_summary).where(TraceSpan.run_id == run_id)
+        ).scalar_one()
+
+        events = (
+            connection.execute(
+                select(AuditEvent.event_type).where(AuditEvent.run_id == run_id)
+            )
+            .scalars()
+            .all()
+        )
+
+    assert decision is True
+    assert outcome == "INVALID_TOOL_RESULT"
+    assert "tool.authorization" in events
+    assert "tool.outcome" in events
+
+
+def test_gateway_persists_audit_after_unexpected_tool_failure(isolated_run):
+    run_id, engine = isolated_run
+    claim = asyncio.run(claim_with_worker(run_id, "gateway-failure-worker"))
+    assert claim is not None
+
+    secret_message = "PRIVATE_TOOL_ERROR_DETAILS"
+
+    def failing_invoker(name, arguments):
+        raise RuntimeError(secret_message)
+
+    with pytest.raises(RuntimeError, match=secret_message):
+        asyncio.run(
+            call_gateway_for_claim(
+                claim,
+                "get_incident",
+                {"incident_id": "INC-1042"},
+                read_invoker=failing_invoker,
+            )
+        )
+
+    with engine.connect() as connection:
+        outcome = connection.execute(
+            select(TraceSpan.safe_summary).where(TraceSpan.run_id == run_id)
+        ).scalar_one()
+
+        events = connection.execute(
+            select(
+                AuditEvent.event_type,
+                AuditEvent.event_payload,
+            ).where(AuditEvent.run_id == run_id)
+        ).all()
+
+    assert outcome == "TOOL_ERROR"
+
+    event_types = [event.event_type for event in events]
+    assert "tool.authorization" in event_types
+    assert "tool.outcome" in event_types
+
+    # Raw exception details must never enter persistent audit records.
+    assert secret_message not in repr(events)
+
+
+def test_gateway_rejects_expired_worker_without_dispatch(isolated_run):
+    run_id, engine = isolated_run
+    claim = asyncio.run(claim_with_worker(run_id, "gateway-expired-worker"))
+    assert claim is not None
+
+    with engine.begin() as connection:
+        connection.execute(
+            update(AgentRun)
+            .where(AgentRun.id == run_id)
+            .values(lease_expires_at=(datetime.now(UTC) - timedelta(minutes=1)))
+        )
+
+    calls = []
+
+    def tracked_invoker(name, arguments):
+        calls.append(name)
+        return invoke_tool(name, arguments)
+
+    with pytest.raises(GatewayOwnershipError):
+        asyncio.run(
+            call_gateway_for_claim(
+                claim,
+                "get_incident",
+                {"incident_id": "INC-1042"},
+                read_invoker=tracked_invoker,
+            )
+        )
+
+    assert calls == []
+
+    with engine.connect() as connection:
+        decisions = connection.execute(
+            select(PolicyDecision.id).where(PolicyDecision.run_id == run_id)
+        ).all()
+
+    assert decisions == []
+
+
+def test_worker_audits_every_diagnostic_before_dispatch(isolated_run):
+    """The full investigation must never bypass gateway authorization."""
+    run_id, engine = isolated_run
+    dispatched = []
+
+    def verified_invoker(name, arguments):
+        # This callback runs only after the gateway commits authorization.
+        with engine.connect() as connection:
+            decisions = connection.execute(
+                select(
+                    PolicyDecision.action,
+                    PolicyDecision.decision,
+                ).where(PolicyDecision.run_id == run_id)
+            ).all()
+
+            authorization_events = connection.execute(
+                select(AuditEvent.id).where(
+                    AuditEvent.run_id == run_id,
+                    AuditEvent.event_type == "tool.authorization",
+                )
+            ).all()
+
+        expected_count = len(dispatched) + 1
+
+        assert len(decisions) == expected_count
+        assert len(authorization_events) == expected_count
+        assert all(item.decision == "allow" for item in decisions)
+
+        dispatched.append(name)
+        return invoke_tool(name, arguments)
+
+    result = asyncio.run(
+        execute_test_worker_cycle(
+            run_id,
+            tool_invoker=verified_invoker,
+        )
+    )
+
+    assert result.run_id == run_id
+    assert result.finalized is True
+    assert len(dispatched) == 8
+
+    with engine.connect() as connection:
+        run = connection.execute(
+            select(
+                AgentRun.status,
+                AgentRun.execution_checkpoint,
+            ).where(AgentRun.id == run_id)
+        ).one()
+
+        decisions = connection.execute(
+            select(
+                PolicyDecision.decision,
+                PolicyDecision.executed,
+            ).where(PolicyDecision.run_id == run_id)
+        ).all()
+
+        spans = connection.execute(
+            select(
+                TraceSpan.status,
+                TraceSpan.safe_summary,
+            ).where(
+                TraceSpan.run_id == run_id,
+                TraceSpan.span_type == "tool_call",
+            )
+        ).all()
+
+        events = (
+            connection.execute(
+                select(AuditEvent.event_type).where(AuditEvent.run_id == run_id)
+            )
+            .scalars()
+            .all()
+        )
+
+        approvals = connection.execute(
+            select(ApprovalRequest.id).where(ApprovalRequest.run_id == run_id)
+        ).all()
+
+    assert run.status == "completed"
+    assert run.execution_checkpoint["tool_calls_used"] == 8
+
+    assert len(decisions) == 8
+    assert all(item.decision == "allow" and item.executed is True for item in decisions)
+
+    assert len(spans) == 8
+    assert all(item.status == "ok" and item.safe_summary == "SUCCESS" for item in spans)
+
+    assert events.count("tool.authorization") == 8
+    assert events.count("tool.outcome") == 8
+    assert approvals == []
+
+
+def test_gateway_timeout_records_unknown_completion(isolated_run):
+    """A timed-out thread must not be reported as never dispatched."""
+    import time
+
+    run_id, engine = isolated_run
+    claim = asyncio.run(claim_with_worker(run_id, "gateway-timeout-worker"))
+    assert claim is not None
+
+    dispatched = []
+
+    def slow_invoker(name, arguments):
+        dispatched.append(name)
+        time.sleep(0.15)
+        return invoke_tool(name, arguments)
+
+    async def invoke_with_short_timeout():
+        async_engine = create_async_engine(Settings().database_url.get_secret_value())
+        try:
+            factory = create_session_factory(async_engine)
+            gateway = ToolGateway(
+                factory,
+                claim,
+                read_invoker=slow_invoker,
+            )
+            return await gateway.invoke(
+                "get_incident",
+                {"incident_id": "INC-1042"},
+                checkpoint=InvestigationCheckpoint(
+                    next_step=0,
+                    tool_calls_used=0,
+                ),
+                active_elapsed_ms=0,
+                timeout_seconds=0.02,
+            )
+        finally:
+            await async_engine.dispose()
+
+    with pytest.raises(TimeoutError):
+        asyncio.run(invoke_with_short_timeout())
+
+    assert dispatched == ["get_incident"]
+
+    with engine.connect() as connection:
+        decision = connection.execute(
+            select(
+                PolicyDecision.decision,
+                PolicyDecision.executed,
+            ).where(PolicyDecision.run_id == run_id)
+        ).one()
+
+        span = connection.execute(
+            select(
+                TraceSpan.status,
+                TraceSpan.safe_summary,
+            ).where(TraceSpan.run_id == run_id)
+        ).one()
+
+        events = connection.execute(
+            select(
+                AuditEvent.event_type,
+                AuditEvent.event_payload,
+            ).where(AuditEvent.run_id == run_id)
+        ).all()
+
+    assert decision.decision == "allow"
+    assert decision.executed is True
+
+    assert span.status == "error"
+    assert span.safe_summary == "TOOL_TIMEOUT_UNKNOWN_COMPLETION"
+
+    outcomes = [
+        event.event_payload["outcome"]
+        for event in events
+        if event.event_type == "tool.outcome"
+    ]
+
+    assert outcomes == ["TOOL_TIMEOUT_UNKNOWN_COMPLETION"]
+    assert any(event.event_type == "tool.authorization" for event in events)
+
+
+# Day 9: Durable human-approval decision integration tests.
+
+from backend.app.services.approval_decisions import (
+    ApprovalConflictError,
+    decide_pending_approval,
+)
+
+
+def create_pending_test_approval(run_id, engine):
+    claim = asyncio.run(claim_with_worker(run_id, "approval-test-worker"))
+    assert claim is not None
+
+    with pytest.raises(GatewayApprovalRequired):
+        asyncio.run(
+            call_gateway_for_claim(
+                claim,
+                "restart_service",
+                {
+                    "service_name": "payment-service",
+                    "reason": "Investigate persistent database connection failures.",
+                },
+            )
+        )
+
+    with engine.connect() as connection:
+        return connection.execute(
+            select(ApprovalRequest.id).where(ApprovalRequest.run_id == run_id)
+        ).scalar_one()
+
+
+async def decide_test_approval(approval_id, decision, key):
+    async_engine = create_async_engine(Settings().database_url.get_secret_value())
+    try:
+        factory = create_session_factory(async_engine)
+        async with factory() as session:
+            return await decide_pending_approval(
+                session,
+                approval_id,
+                decision=decision,
+                operator_id="test-operator",
+                reason="Reviewed the incident evidence and operational risks.",
+                idempotency_key=key,
+            )
+    finally:
+        await async_engine.dispose()
+
+
+def test_approval_records_decision_without_executing(isolated_run):
+    run_id, engine = isolated_run
+    approval_id = create_pending_test_approval(run_id, engine)
+
+    result = asyncio.run(
+        decide_test_approval(approval_id, "approved", "approve-key-001")
+    )
+
+    assert result.status == "approved"
+    assert result.run_status == "awaiting_approval"
+    assert result.idempotent is False
+
+    with engine.connect() as connection:
+        approval = connection.execute(
+            select(
+                ApprovalRequest.status,
+                ApprovalRequest.execution_status,
+                ApprovalRequest.decided_by,
+            ).where(ApprovalRequest.id == approval_id)
+        ).one()
+
+        run_status = connection.execute(
+            select(AgentRun.status).where(AgentRun.id == run_id)
+        ).scalar_one()
+
+    assert approval.status == "approved"
+    assert approval.execution_status == "not_started"
+    assert approval.decided_by == "test-operator"
+    assert run_status == "awaiting_approval"
+
+
+def test_approval_retry_is_idempotent(isolated_run):
+    run_id, engine = isolated_run
+    approval_id = create_pending_test_approval(run_id, engine)
+
+    first = asyncio.run(
+        decide_test_approval(approval_id, "approved", "approve-key-002")
+    )
+    second = asyncio.run(
+        decide_test_approval(approval_id, "approved", "approve-key-002")
+    )
+
+    assert first.idempotent is False
+    assert second.idempotent is True
+
+    with engine.connect() as connection:
+        decision_events = connection.execute(
+            select(AuditEvent.id).where(
+                AuditEvent.run_id == run_id,
+                AuditEvent.event_type == "approval.decided",
+            )
+        ).all()
+
+    assert len(decision_events) == 1
+
+
+def test_rejection_fails_run_without_execution(isolated_run):
+    run_id, engine = isolated_run
+    approval_id = create_pending_test_approval(run_id, engine)
+
+    result = asyncio.run(
+        decide_test_approval(approval_id, "rejected", "reject-key-001")
+    )
+
+    assert result.status == "rejected"
+    assert result.run_status == "failed"
+
+    with engine.connect() as connection:
+        run = connection.execute(
+            select(
+                AgentRun.status,
+                AgentRun.error_code,
+                AgentRun.pending_approval_id,
+            ).where(AgentRun.id == run_id)
+        ).one()
+
+        execution_status = connection.execute(
+            select(ApprovalRequest.execution_status).where(
+                ApprovalRequest.id == approval_id
+            )
+        ).scalar_one()
+
+    assert run.status == "failed"
+    assert run.error_code == "APPROVAL_REJECTED"
+    assert run.pending_approval_id is None
+    assert execution_status == "skipped"
+
+
+def test_expired_approval_cannot_be_approved(isolated_run):
+    run_id, engine = isolated_run
+    approval_id = create_pending_test_approval(run_id, engine)
+
+    with engine.begin() as connection:
+        connection.execute(
+            update(ApprovalRequest)
+            .where(ApprovalRequest.id == approval_id)
+            .values(expires_at=datetime.now(UTC) - timedelta(minutes=1))
+        )
+
+    result = asyncio.run(
+        decide_test_approval(approval_id, "approved", "expired-key-001")
+    )
+
+    assert result.status == "expired"
+    assert result.run_status == "failed"
+
+    with engine.connect() as connection:
+        run_error = connection.execute(
+            select(AgentRun.error_code).where(AgentRun.id == run_id)
+        ).scalar_one()
+
+        execution_status = connection.execute(
+            select(ApprovalRequest.execution_status).where(
+                ApprovalRequest.id == approval_id
+            )
+        ).scalar_one()
+
+    assert run_error == "APPROVAL_EXPIRED"
+    assert execution_status == "skipped"
+
+
+def test_conflicting_approval_retry_is_rejected(isolated_run):
+    run_id, engine = isolated_run
+    approval_id = create_pending_test_approval(run_id, engine)
+
+    asyncio.run(decide_test_approval(approval_id, "approved", "approve-key-003"))
+
+    with pytest.raises(ApprovalConflictError):
+        asyncio.run(decide_test_approval(approval_id, "rejected", "reject-key-003"))
