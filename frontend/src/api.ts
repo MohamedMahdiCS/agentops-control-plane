@@ -101,3 +101,54 @@ export async function getAgentRun(
 
   return parseResponse<AgentRunDetail>(response)
 }
+
+export interface RunTraceSpan {
+  id: string
+  parent_span_id: string | null
+  span_type: 'agent_step' | 'tool_call' | 'model_call' | 'policy_check'
+  name: string
+  status: string
+  started_at: string
+  ended_at: string | null
+  duration_ms: number | null
+  safe_summary: string | null
+}
+
+export interface RunAuditEvent {
+  id: string
+  event_type: string
+  actor_type: string
+  created_at: string
+}
+
+export interface RunTraceResponse {
+  run_id: string
+  spans: RunTraceSpan[]
+  audit_events: RunAuditEvent[]
+  spans_truncated: boolean
+  audit_events_truncated: boolean
+}
+
+export async function getRunTraces(
+  runId: string,
+  operatorToken: string,
+  signal?: AbortSignal,
+): Promise<RunTraceResponse> {
+  if (!operatorToken || operatorToken.trim() !== operatorToken) {
+    throw new Error('A valid operator token is required.')
+  }
+
+  const response = await fetch(
+    `/api/v1/runs/${encodeURIComponent(runId)}/traces`,
+    {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${operatorToken}`,
+      },
+      signal,
+      cache: 'no-store',
+    },
+  )
+
+  return parseResponse<RunTraceResponse>(response)
+}

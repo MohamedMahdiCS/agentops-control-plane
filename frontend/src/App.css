@@ -1080,3 +1080,456 @@
     transform: none;
   }
 }
+
+/* Day 11 — Midnight Precision Trace Explorer */
+
+.trace-explorer {
+  position: relative;
+  isolation: isolate;
+  margin-top: 28px;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse at 92% 0%, rgba(115, 92, 255, 0.11), transparent 48%),
+    linear-gradient(145deg, #111c32, #0b1426 78%);
+  border: 1px solid rgba(137, 158, 206, 0.18);
+}
+
+.trace-explorer::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(166, 145, 255, 0.6),
+    transparent
+  );
+  pointer-events: none;
+}
+
+.trace-explorer > .panel-heading {
+  position: relative;
+  z-index: 1;
+}
+
+.trace-explorer .count-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.trace-access {
+  margin: 22px 0;
+  padding: 21px;
+  border: 1px solid rgba(136, 159, 207, 0.18);
+  border-radius: 16px;
+  background: rgba(8, 17, 34, 0.62);
+}
+
+.trace-access-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 17px;
+  color: #b4a5ff;
+}
+
+.trace-access-heading strong {
+  display: block;
+  color: #e4e9fa;
+  font-size: 14px;
+}
+
+.trace-access-heading p {
+  margin: 5px 0 0;
+  color: #91a1bd;
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.trace-auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.trace-auth-form label {
+  color: #aebdd7;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.trace-auth-controls {
+  display: flex;
+  align-items: stretch;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.trace-auth-controls input {
+  flex: 1 1 220px;
+  min-width: 0;
+  padding: 11px 14px;
+  color: #f1f5ff;
+  background: #0a1427;
+  border: 1px solid #334563;
+  border-radius: 10px;
+  outline: none;
+}
+
+.trace-auth-controls input:focus {
+  border-color: #a293ff;
+  box-shadow: 0 0 0 3px rgba(151, 126, 255, 0.16);
+}
+
+.trace-auth-controls button {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+}
+
+.trace-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 20px 0;
+}
+
+.trace-metric {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 8px 10px;
+  padding: 17px;
+  border: 1px solid rgba(137, 158, 206, 0.17);
+  border-radius: 13px;
+  background: rgba(17, 31, 55, 0.76);
+  color: #a897ff;
+}
+
+.trace-metric span {
+  color: #a8b6ce;
+  font-size: 12px;
+}
+
+.trace-metric strong {
+  grid-column: 1 / -1;
+  font-size: 29px;
+  letter-spacing: -1px;
+  color: #f4f6ff;
+  font-variant-numeric: tabular-nums;
+}
+
+.trace-truncated {
+  padding: 12px 15px;
+  border: 1px solid rgba(238, 183, 108, 0.35);
+  border-radius: 10px;
+  color: #f1c98c;
+  background: rgba(126, 80, 24, 0.11);
+  font-size: 12px;
+}
+
+.trace-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
+  gap: 16px;
+  align-items: start;
+  margin-top: 18px;
+}
+
+.trace-timeline,
+.trace-inspector {
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid rgba(136, 159, 207, 0.18);
+  border-radius: 16px;
+  background: rgba(7, 16, 32, 0.72);
+}
+
+.trace-timeline {
+  max-height: 540px;
+  overflow-y: auto;
+  scrollbar-color: #435579 transparent;
+  scrollbar-width: thin;
+}
+
+.trace-inspector {
+  position: sticky;
+  top: 20px;
+  min-height: 300px;
+}
+
+.trace-section-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+  color: #8698bb;
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 1.7px;
+}
+
+.trace-section-heading span:last-child {
+  color: #ab9aff;
+  font-variant-numeric: tabular-nums;
+}
+
+.trace-entry {
+  position: relative;
+  display: flex;
+  width: 100%;
+  gap: 15px;
+  padding: 13px 12px 17px 16px;
+  text-align: left;
+  color: inherit;
+  border: 1px solid transparent;
+  border-radius: 11px;
+  background: transparent;
+  cursor: pointer;
+  transition:
+    background 180ms ease,
+    border-color 180ms ease,
+    transform 180ms ease;
+}
+
+.trace-entry:not(:last-child)::before {
+  content: '';
+  position: absolute;
+  left: 21px;
+  top: 32px;
+  bottom: -13px;
+  width: 1px;
+  background: linear-gradient(#8b78ef, rgba(86, 104, 152, 0.23));
+}
+
+.trace-entry:hover {
+  background: rgba(110, 91, 197, 0.11);
+  transform: translateX(3px);
+}
+
+.trace-entry.is-selected {
+  background: rgba(123, 103, 236, 0.15);
+  border-color: rgba(158, 138, 255, 0.4);
+}
+
+.trace-entry:focus-visible {
+  outline: 2px solid #b4a5ff;
+  outline-offset: 2px;
+}
+
+.trace-entry-marker {
+  position: relative;
+  z-index: 1;
+  flex: 0 0 12px;
+  height: 12px;
+  margin-top: 5px;
+  border: 2px solid #ad9cff;
+  border-radius: 50%;
+  background: #221d43;
+  box-shadow: 0 0 12px rgba(142, 115, 255, 0.42);
+}
+
+.trace-entry.is-selected .trace-entry-marker {
+  background: #b6a5ff;
+  box-shadow:
+    0 0 0 5px rgba(155, 133, 255, 0.13),
+    0 0 22px rgba(155, 133, 255, 0.58);
+}
+
+.trace-entry-content {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  gap: 6px;
+}
+
+.trace-entry-topline {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: #8e9ebd;
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 1px;
+}
+
+.trace-entry-content strong {
+  overflow-wrap: anywhere;
+  color: #eaf0ff;
+  font-size: 13px;
+}
+
+.trace-entry-meta {
+  color: #91a1bc;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.trace-inspector-header {
+  padding-bottom: 18px;
+  border-bottom: 1px solid rgba(136, 159, 207, 0.16);
+}
+
+.trace-inspector-type {
+  color: #ac9eff;
+  font-size: 11px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.trace-inspector-header h3 {
+  margin: 8px 0 0;
+  overflow-wrap: anywhere;
+  color: #f1f4ff;
+  font-size: 20px;
+  letter-spacing: -0.4px;
+}
+
+.trace-inspector-fields {
+  display: grid;
+  gap: 0;
+  margin: 8px 0 0;
+}
+
+.trace-inspector-fields > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
+  padding: 14px 0;
+  border-bottom: 1px solid rgba(136, 159, 207, 0.09);
+}
+
+.trace-inspector-fields dt {
+  flex: 0 0 auto;
+  color: #90a0be;
+  font-size: 12px;
+}
+
+.trace-inspector-fields dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  text-align: right;
+  color: #e4ebff;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.trace-privacy-note {
+  margin: 21px 0 0;
+  color: #8192b0;
+  font-size: 11px;
+  line-height: 1.7;
+}
+
+.trace-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 45px 20px;
+  text-align: center;
+  color: #aa9aff;
+}
+
+.trace-empty strong {
+  color: #e7ecfb;
+}
+
+.trace-empty p {
+  max-width: 390px;
+  margin: 0;
+  color: #92a2bd;
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+@media (max-width: 950px) {
+  .trace-workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .trace-inspector {
+    position: static;
+  }
+}
+
+@media (max-width: 580px) {
+  .trace-metrics {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .trace-access,
+  .trace-timeline,
+  .trace-inspector {
+    padding: 15px;
+  }
+
+  .trace-auth-controls button {
+    flex: 1 1 auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .trace-entry {
+    transition: none;
+  }
+
+  .trace-entry:hover {
+    transform: none;
+  }
+}
+
+/* Day 11 — Existing investigation lookup */
+
+.run-lookup {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 20px;
+  padding: 18px;
+  border: 1px solid rgba(136, 159, 207, 0.18);
+  border-radius: 13px;
+  background: rgba(10, 19, 37, 0.5);
+}
+
+.run-lookup label {
+  color: #aebdd7;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.run-lookup-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.run-lookup-controls input {
+  flex: 1 1 230px;
+  min-width: 0;
+  padding: 11px 14px;
+  color: #f1f5ff;
+  background: #0a1427;
+  border: 1px solid #334563;
+  border-radius: 10px;
+  outline: none;
+}
+
+.run-lookup-controls input:focus {
+  border-color: #a293ff;
+  box-shadow: 0 0 0 3px rgba(151, 126, 255, 0.16);
+}
+
+.run-lookup-controls button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
