@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { Activity, CircleAlert, Play, RefreshCw } from 'lucide-react'
+import { Activity, CircleAlert, Play, RefreshCw, Search } from 'lucide-react'
+import TraceExplorer from './TraceExplorer'
 import {
   getAgentRun,
   submitAgentRun,
@@ -23,6 +24,7 @@ export default function RunConsole({ agents }: RunConsoleProps) {
       return ''
     }
   })
+  const [lookupRunId, setLookupRunId] = useState('')
   const [run, setRun] = useState<AgentRunDetail | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [loadingRun, setLoadingRun] = useState(Boolean(runId))
@@ -90,6 +92,38 @@ export default function RunConsole({ agents }: RunConsoleProps) {
     }
   }
 
+  function handleLookup(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+
+    const requestedId = lookupRunId.trim()
+
+    if (
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        requestedId,
+      )
+    ) {
+      setError('Enter a valid investigation run ID (UUID).')
+      return
+    }
+
+    if (requestedId === runId) {
+      void refreshRun()
+      return
+    }
+
+    setError('')
+    setRun(null)
+    setLoadingRun(true)
+    setRunId(requestedId)
+    setLookupRunId('')
+
+    try {
+      sessionStorage.setItem('agentops:last-run-id', requestedId)
+    } catch {
+      // Run remains accessible in the current browser session.
+    }
+  }
+
   async function refreshRun() {
     if (!runId || loadingRun) return
     setLoadingRun(true)
@@ -146,6 +180,29 @@ export default function RunConsole({ agents }: RunConsoleProps) {
         </button>
       </form>
 
+      <form className="run-lookup" onSubmit={handleLookup}>
+        <label htmlFor="existing-run-id">Inspect an existing run</label>
+        <div className="run-lookup-controls">
+          <input
+            id="existing-run-id"
+            type="text"
+            value={lookupRunId}
+            onChange={(event) => setLookupRunId(event.target.value)}
+            placeholder="Enter an existing run UUID"
+            autoComplete="off"
+            spellCheck={false}
+          />
+          <button
+            type="submit"
+            className="button-secondary"
+            disabled={!lookupRunId.trim() || loadingRun}
+          >
+            <Search size={16} />
+            Load run
+          </button>
+        </div>
+      </form>
+
       {error && (
         <div className="alert error" role="alert">
           <CircleAlert size={18} />
@@ -157,7 +214,7 @@ export default function RunConsole({ agents }: RunConsoleProps) {
         <div className="run-details">
           <div className="panel-heading">
             <div>
-              <h2>Latest submitted run</h2>
+              <h2>Selected investigation</h2>
               <p>{runId}</p>
             </div>
             <button
@@ -184,6 +241,9 @@ export default function RunConsole({ agents }: RunConsoleProps) {
             </p>
           )}
         </div>
+      )}
+      {runId && (
+        <TraceExplorer key={runId} runId={runId} />
       )}
     </section>
   )
