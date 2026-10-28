@@ -865,3 +865,218 @@
     align-items: stretch;
   }
 }
+
+/* ==========================================================
+   DAY 10 — MIDNIGHT PRECISION / 3D AGENT CONSTELLATION
+   ========================================================== */
+
+.topology-panel {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  margin-bottom: 34px;
+  border: 1px solid #304466;
+  border-radius: 20px;
+  background:
+    radial-gradient(ellipse at 50% 42%, #273e7945, transparent 55%),
+    radial-gradient(ellipse at 85% 15%, #653fac24, transparent 48%),
+    linear-gradient(145deg, #101c32 0%, #0b1426 58%, #101a30 100%);
+  box-shadow:
+    0 18px 55px #00000028,
+    inset 0 1px 0 #b7caff0b;
+  animation: topology-enter 600ms ease-out both;
+}
+
+.topology-panel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image:
+    linear-gradient(#6688bd09 1px, transparent 1px),
+    linear-gradient(90deg, #6688bd09 1px, transparent 1px);
+  background-size: 36px 36px;
+  mask-image: linear-gradient(to bottom, transparent, black 25%, transparent);
+}
+
+.topology-panel::after {
+  content: '';
+  position: absolute;
+  top: -170px;
+  left: 20%;
+  width: 60%;
+  height: 260px;
+  z-index: -1;
+  pointer-events: none;
+  border-radius: 50%;
+  background: #597dfc17;
+  filter: blur(85px);
+}
+
+.topology-heading {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 28px 30px 0;
+}
+
+.topology-heading h2 {
+  margin: 0;
+  color: #f0f5ff;
+  font-size: clamp(19px, 2vw, 24px);
+  font-weight: 700;
+  letter-spacing: -0.7px;
+}
+
+.topology-heading p {
+  margin: 10px 0 0;
+  color: #91a4c3;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.topology-heading .eyebrow {
+  display: block;
+  margin-bottom: 12px;
+  color: #88acff;
+}
+
+.topology-heading .count-tag {
+  border-color: #37567b;
+  background: #1d3354a8;
+  color: #b0c8ff;
+}
+
+.topology-canvas {
+  position: relative;
+  height: 410px;
+  width: 100%;
+  overflow: hidden;
+}
+
+.topology-canvas canvas {
+  display: block;
+  outline: none;
+}
+
+.topology-loading {
+  display: grid;
+  min-height: 280px;
+  place-items: center;
+  margin-bottom: 34px;
+  border: 1px solid #304466;
+  border-radius: 20px;
+  background: #101a30;
+  color: #9eb4db;
+  font-size: 13px;
+}
+
+.topology-footer {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px 24px;
+  padding: 0 30px 18px;
+}
+
+.topology-footer p {
+  margin: 0;
+  color: #8b9ebb;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.topology-footer [role="status"] {
+  color: #85dab9;
+  font-weight: 600;
+}
+
+.topology-agent-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 18px 30px 24px;
+  border-top: 1px solid #31436177;
+}
+
+.topology-agent-list button {
+  padding: 8px 12px;
+  border: 1px solid #344d71;
+  border-radius: 8px;
+  background: #182b48;
+  color: #b9c9e7;
+  font-size: 11px;
+  font-weight: 600;
+  transition:
+    background 180ms ease,
+    border-color 180ms ease,
+    color 180ms ease,
+    transform 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.topology-agent-list button:hover {
+  transform: translateY(-2px);
+  border-color: #6996e9;
+  background: #24416e;
+  color: #fff;
+  box-shadow: 0 5px 20px #416bcd22;
+}
+
+.topology-agent-list button[aria-pressed="true"] {
+  border-color: #75dab6;
+  background: #1a473f;
+  color: #aaf2d7;
+}
+
+.topology-agent-list button:focus-visible {
+  outline: 2px solid #a6c1ff;
+  outline-offset: 3px;
+}
+
+@keyframes topology-enter {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 768px) {
+  .topology-heading {
+    padding: 22px 20px 0;
+  }
+
+  .topology-canvas {
+    height: 310px;
+  }
+
+  .topology-footer {
+    padding: 0 20px 16px;
+  }
+
+  .topology-agent-list {
+    padding: 16px 20px 20px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .topology-panel {
+    animation: none;
+  }
+
+  .topology-agent-list button {
+    transition: none;
+  }
+
+  .topology-agent-list button:hover {
+    transform: none;
+  }
+}
