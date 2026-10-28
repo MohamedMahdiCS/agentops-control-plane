@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useState, type FormEvent } from 'react'
 import {
   Activity,
   Bot,
@@ -18,6 +18,10 @@ import RunConsole from './components/RunConsole'
 import './App.css'
 
 type View = 'overview' | 'agents' | 'runs'
+
+const AgentTopology3D = lazy(
+  () => import('./components/AgentTopology3D'),
+)
 
 function App() {
   const [view, setView] = useState<View>(() => {
@@ -291,6 +295,17 @@ function App() {
                   <div className="stat-foot">FastAPI / PostgreSQL</div>
                 </div>
               </section>
+
+              <Suspense
+                fallback={
+                  <section className="topology-loading" role="status">
+                    Preparing interactive 3D agent constellation...
+                  </section>
+                }
+              >
+                <AgentTopology3D agents={agents} />
+              </Suspense>
+
               <div className="section-kicker">LIVE REGISTRY</div>
             </>
           )}

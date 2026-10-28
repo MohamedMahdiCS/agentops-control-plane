@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from backend.app.runtime.investigation import ToolInvoker
 from backend.app.runtime.worker import process_claimed_run
+from backend.app.services.approval_expiration import expire_pending_approvals
 from backend.app.services.run_claims import claim_next_run
 from backend.app.simulator.registry import invoke_tool
 
@@ -28,6 +29,10 @@ async def run_worker_once(
     A missing job returns without executing tools.
     Claiming and investigation use separate transactions.
     """
+
+    # Recover expired approvals even when no investigation is queued.
+    # This maintenance operation never dispatches sensitive tools.
+    await expire_pending_approvals(session_factory)
 
     async with session_factory() as session:
         claim = await claim_next_run(

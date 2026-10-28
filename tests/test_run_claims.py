@@ -1419,3 +1419,152 @@ def test_conflicting_approval_retry_is_rejected(isolated_run):
 
     with pytest.raises(ApprovalConflictError):
         asyncio.run(decide_test_approval(approval_id, "rejected", "reject-key-003"))
+
+
+# Day 10: Automatic approval expiration integration tests.
+
+from backend.app.services.approval_expiration import expire_pending_approvals
+
+
+async def run_approval_expiration(*, concurrent=False):
+    async_engine = create_async_engine(Settings().database_url.get_secret_value())
+    try:
+        factory = create_session_factory(async_engine)
+
+        if concurrent:
+            return await asyncio.gather(
+                expire_pending_approvals(factory),
+                expire_pending_approvals(factory),
+            )
+
+        return await expire_pending_approvals(factory)
+    finally:
+        await async_engine.dispose()
+
+
+def set_test_approval_expired(approval_id, engine):
+    with engine.begin() as connection:
+        connection.execute(
+            update(ApprovalRequest)
+            .where(ApprovalRequest.id == approval_id)
+            .values(expires_at=datetime.now(UTC) - timedelta(minutes=1))
+        )
+
+
+def test_automatic_expiration_is_durable_and_idempotent(isolated_run):
+    run_id, engine = isolated_run
+    approval_id = create_pending_test_approval(run_id, engine)
+    set_test_approval_expired(approval_id, engine)
+
+    first = asyncio.run(run_approval_expiration())
+    second = asyncio.run(run_approval_expiration())
+
+    assert first == 1
+    assert second == 0
+
+    with engine.connect() as connection:
+        approval = connection.execute(
+            select(
+                ApprovalRequest.status,
+                ApprovalRequest.execution_status,
+            ).where(ApprovalRequest.id == approval_id)
+        ).one()
+
+        run = connection.execute(
+            select(
+                AgentRun.status,
+                AgentRun.error_code,
+                AgentRun.pending_approval_id,
+            ).where(AgentRun.id == run_id)
+        ).one()
+
+        events = connection.execute(
+            select(AuditEvent.id).where(
+                AuditEvent.run_id == run_id,
+                AuditEvent.event_type == "approval.expired",
+            )
+        ).all()
+
+    assert approval.status == "expired"
+    assert approval.execution_status == "skipped"
+    assert run.status == "failed"
+    assert run.error_code == "APPROVAL_EXPIRED"
+    assert run.pending_approval_id is None
+    assert len(events) == 1
+
+
+def test_automatic_expiration_preserves_valid_pending_request(isolated_run):
+    run_id, engine = isolated_run
+    approval_id = create_pending_test_approval(run_id, engine)
+
+    count = asyncio.run(run_approval_expiration())
+
+    assert count == 0
+
+    with engine.connect() as connection:
+        status = connection.execute(
+            select(ApprovalRequest.status).where(ApprovalRequest.id == approval_id)
+        ).scalar_one()
+
+        run_status = connection.execute(
+            select(AgentRun.status).where(AgentRun.id == run_id)
+        ).scalar_one()
+
+    assert status == "pending"
+    assert run_status == "awaiting_approval"
+
+
+def test_automatic_expiration_preserves_approved_request(isolated_run):
+    run_id, engine = isolated_run
+    approval_id = create_pending_test_approval(run_id, engine)
+
+    asyncio.run(
+        decide_test_approval(
+            approval_id,
+            "approved",
+            "approval-recovery-001",
+        )
+    )
+
+    set_test_approval_expired(approval_id, engine)
+
+    count = asyncio.run(run_approval_expiration())
+
+    assert count == 0
+
+    with engine.connect() as connection:
+        status = connection.execute(
+            select(ApprovalRequest.status).where(ApprovalRequest.id == approval_id)
+        ).scalar_one()
+
+        run_status = connection.execute(
+            select(AgentRun.status).where(AgentRun.id == run_id)
+        ).scalar_one()
+
+    assert status == "approved"
+    assert run_status == "awaiting_approval"
+
+
+def test_concurrent_expiration_workers_process_request_once(isolated_run):
+    run_id, engine = isolated_run
+    approval_id = create_pending_test_approval(run_id, engine)
+    set_test_approval_expired(approval_id, engine)
+
+    counts = asyncio.run(run_approval_expiration(concurrent=True))
+
+    assert sum(counts) == 1
+
+    with engine.connect() as connection:
+        events = connection.execute(
+            select(AuditEvent.id).where(
+                AuditEvent.run_id == run_id,
+                AuditEvent.event_type == "approval.expired",
+            )
+        ).all()
+
+        status = connection.execute(
+            select(ApprovalRequest.status).where(ApprovalRequest.id == approval_id)
+        ).scalar_one()
+
+    assert status == "expired"
+    assert len(events) == 1
