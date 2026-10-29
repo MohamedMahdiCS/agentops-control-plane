@@ -49,3 +49,6 @@ data/benchmarks/runs/
 
 # Local coding assistant instructions
 CLAUDE.md
+
+# Container stack secrets
+deploy/stack.env

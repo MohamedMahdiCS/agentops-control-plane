@@ -1,0 +1,16 @@
+.git
+.github
+.env
+.env.*
+!.env.example
+.venv
+.mypy_cache
+.pytest_cache
+.ruff_cache
+**/__pycache__
+frontend
+data/benchmarks/runs
+tests
+docs
+*.log
+.DS_Store
