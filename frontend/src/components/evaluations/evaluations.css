@@ -178,7 +178,7 @@
   color: #d8d2ff;
   background: linear-gradient(145deg, #2f2766, #1b2a52);
   border: 1px solid #3d3a7a;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 12px;
   font-weight: 700;
 }
@@ -236,7 +236,7 @@
 }
 
 .ev-run-form input {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
 }
 
 .ev-run-form input:focus-visible,

@@ -16,9 +16,6 @@ import {
   X,
 } from 'lucide-react'
 import { listAgents, registerAgent, type Agent } from './api'
-import RunConsole from './components/RunConsole'
-import EvaluationDashboard from './components/evaluations/EvaluationDashboard'
-import BenchmarkDashboard from './components/benchmarks/BenchmarkDashboard'
 import './App.css'
 
 type View = 'overview' | 'agents' | 'runs' | 'evaluations' | 'benchmarks'
@@ -53,6 +50,23 @@ function isView(value: string | null): value is View {
 const AgentTopology3D = lazy(
   () => import('./components/AgentTopology3D'),
 )
+const RunConsole = lazy(() => import('./components/RunConsole'))
+const EvaluationDashboard = lazy(
+  () => import('./components/evaluations/EvaluationDashboard'),
+)
+const BenchmarkDashboard = lazy(
+  () => import('./components/benchmarks/BenchmarkDashboard'),
+)
+
+function ViewFallback({ label }: { label: string }) {
+  return (
+    <section className="panel view-loading" role="status">
+      <span className="skeleton skeleton-line" />
+      <span className="skeleton skeleton-block" />
+      <span className="sr-only">Loading {label}…</span>
+    </section>
+  )
+}
 
 function App() {
   const [view, setView] = useState<View>(() => {
@@ -335,7 +349,8 @@ function App() {
               <Suspense
                 fallback={
                   <section className="topology-loading" role="status">
-                    Preparing interactive 3D agent constellation...
+                    <span className="topology-loading-orb" aria-hidden="true" />
+                    Preparing the agent constellation…
                   </section>
                 }
               >
@@ -357,7 +372,16 @@ function App() {
             </div>
 
             {loading && agents.length === 0 ? (
-              <div className="empty-state">Loading agents from FastAPI...</div>
+              <div className="skeleton-table" role="status" aria-label="Loading agents">
+                {Array.from({ length: 4 }, (_, index) => (
+                  <div key={index} className="skeleton-row">
+                    <span className="skeleton skeleton-avatar" />
+                    <span className="skeleton skeleton-line" />
+                    <span className="skeleton skeleton-pill" />
+                    <span className="skeleton skeleton-pill" />
+                  </div>
+                ))}
+              </div>
             ) : agents.length === 0 ? (
               <div className="empty-state">
                 No agents loaded. Register your first agent or check the API connection.
@@ -402,27 +426,55 @@ function App() {
           </section>
           )}
 
-          {view === 'runs' && <RunConsole agents={agents} />}
+          {view === 'runs' && (
+            <Suspense fallback={<ViewFallback label="runs" />}>
+              <RunConsole agents={agents} />
+            </Suspense>
+          )}
 
-          {view === 'evaluations' && <EvaluationDashboard />}
+          {view === 'evaluations' && (
+            <Suspense fallback={<ViewFallback label="evaluations" />}>
+              <EvaluationDashboard />
+            </Suspense>
+          )}
 
-          {view === 'benchmarks' && <BenchmarkDashboard agents={agents} />}
+          {view === 'benchmarks' && (
+            <Suspense fallback={<ViewFallback label="benchmarks" />}>
+              <BenchmarkDashboard agents={agents} />
+            </Suspense>
+          )}
 
           {view === 'overview' && (
-            <section className="roadmap-panel">
+            <section className="roadmap-panel" aria-label="Reliability capabilities">
               <div className="roadmap-heading">
                 <ShieldCheck size={20} />
                 <div>
-                  <h2>Reliability Replay & Policy Proof</h2>
-                  <p>Our signature engineering capability — currently in development.</p>
+                  <h2>Reliability, Replay &amp; Policy Proof</h2>
+                  <p>Every capability below runs against real persisted evidence.</p>
                 </div>
-                <span className="roadmap-badge">PLANNED</span>
+                <span className="roadmap-badge is-live">LIVE</span>
               </div>
-              <div className="roadmap-items">
-                <span>Durable execution</span>
-                <span>Tool authorization</span>
-                <span>Human approvals</span>
-                <span>Reproducible evaluations</span>
+              <div className="capability-grid">
+                <button type="button" className="capability-card" onClick={() => setView('runs')}>
+                  <Activity size={18} />
+                  <strong>Durable runs &amp; traces</strong>
+                  <span>Leased workers, checkpoints and an authenticated trace explorer.</span>
+                </button>
+                <button type="button" className="capability-card" onClick={() => setView('evaluations')}>
+                  <ClipboardCheck size={18} />
+                  <strong>Deterministic evaluations</strong>
+                  <span>Evidence-linked 0–100 scores with safety gates and regression diffs.</span>
+                </button>
+                <button type="button" className="capability-card" onClick={() => setView('benchmarks')}>
+                  <Gauge size={18} />
+                  <strong>Benchmarks &amp; replay</strong>
+                  <span>Reproducible suites, release gates and behavioural fingerprints.</span>
+                </button>
+                <div className="capability-card is-static">
+                  <LockKeyhole size={18} />
+                  <strong>Policy-controlled tools</strong>
+                  <span>Gateway authorization, human approvals and expiry recovery.</span>
+                </div>
               </div>
             </section>
           )}
