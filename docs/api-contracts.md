@@ -257,6 +257,22 @@ The comparison endpoint only compares results with the same scenario key, scenar
 
 See `docs/evaluation-benchmarks.md` §20 for the grading rules.
 
+### 8.4 Benchmarks (implemented, Day 13)
+
+All routes require an authenticated operator.
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/api/v1/benchmarks` | Benchmark summaries (newest first) and identifiers of manifests that failed integrity checks |
+| POST | `/api/v1/benchmarks` | Run the suite: `{"agent_id": "…", "scenario_keys": ["B01"], "label": "…"}` (keys and label optional) → 201 |
+| GET | `/api/v1/benchmarks/{id}` | Manifest plus measured performance summary |
+| POST | `/api/v1/benchmarks/{id}/replay` | Re-execute the same scenario versions as a new benchmark → 201 |
+| POST | `/api/v1/benchmarks/{id}/resume` | Continue an interrupted benchmark without duplicating completed work |
+| GET | `/api/v1/benchmarks/{id}/compare?baseline_id=` | Regression and reproducibility comparison (422 if incompatible) |
+| GET | `/api/v1/benchmarks/{id}/report.md` | Markdown report, optionally with `baseline_id` |
+
+Errors: 404 unknown benchmark, 409 another benchmark running or manifest failed integrity validation, 422 invalid configuration (unknown scenario, disabled agent).
+
 ## 10. Policy Decisions
 
 ### GET `/api/v1/runs/{run_id}/policy-decisions`

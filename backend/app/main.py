@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 from backend.app.api.v1.agents import router as agents_router
 from backend.app.api.v1.approvals import router as approvals_router
+from backend.app.api.v1.benchmarks import router as benchmarks_router
 from backend.app.api.v1.evaluations import router as evaluations_router
 from backend.app.api.v1.runs import router as runs_router
 from backend.app.core.database import create_database_engine
@@ -42,6 +43,7 @@ def create_app() -> FastAPI:
     application.include_router(runs_router, prefix="/api/v1")
     application.include_router(approvals_router, prefix="/api/v1")
     application.include_router(evaluations_router, prefix="/api/v1")
+    application.include_router(benchmarks_router, prefix="/api/v1")
 
     @application.get(
         "/api/v1/health",
