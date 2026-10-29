@@ -3,6 +3,7 @@ import {
   Activity,
   Bot,
   CheckCircle2,
+  ClipboardCheck,
   CircleAlert,
   Database,
   LayoutDashboard,
@@ -15,9 +16,33 @@ import {
 } from 'lucide-react'
 import { listAgents, registerAgent, type Agent } from './api'
 import RunConsole from './components/RunConsole'
+import EvaluationDashboard from './components/evaluations/EvaluationDashboard'
 import './App.css'
 
-type View = 'overview' | 'agents' | 'runs'
+type View = 'overview' | 'agents' | 'runs' | 'evaluations'
+
+const VIEW_META: Record<View, { title: string; description: string }> = {
+  overview: {
+    title: 'Control Plane Overview',
+    description: 'Discover, observe, evaluate and secure your AI agents.',
+  },
+  agents: {
+    title: 'Agent Registry',
+    description: 'Manage registered agents backed by your PostgreSQL database.',
+  },
+  runs: {
+    title: 'Runs & Traces',
+    description: 'Submit durable investigations and inspect real execution status.',
+  },
+  evaluations: {
+    title: 'Evaluations',
+    description: 'Grade real runs against versioned scenarios with evidence-linked scores.',
+  },
+}
+
+function isView(value: string | null): value is View {
+  return value !== null && value in VIEW_META
+}
 
 const AgentTopology3D = lazy(
   () => import('./components/AgentTopology3D'),
@@ -27,9 +52,7 @@ function App() {
   const [view, setView] = useState<View>(() => {
     try {
       const saved = sessionStorage.getItem('agentops:active-view')
-      return saved === 'agents' || saved === 'runs'
-        ? saved
-        : 'overview'
+      return isView(saved) ? saved : 'overview'
     } catch {
       return 'overview'
     }
@@ -182,15 +205,20 @@ function App() {
             <Activity size={18} /> Runs & Traces
           </button>
 
+          <button
+            type="button"
+            className={view === 'evaluations' ? 'nav-item selected' : 'nav-item'}
+            onClick={() => setView('evaluations')}
+          >
+            <ClipboardCheck size={18} /> Evaluations
+          </button>
+
           <div className="sidebar-label nav-divider">COMING NEXT</div>
           <div className="nav-item unavailable">
             <ShieldCheck size={18} /> Policy Center <span>SOON</span>
           </div>
           <div className="nav-item unavailable">
             <LockKeyhole size={18} /> Approvals <span>SOON</span>
-          </div>
-          <div className="nav-item unavailable">
-            <Database size={18} /> Evaluations <span>SOON</span>
           </div>
         </nav>
 
@@ -203,7 +231,7 @@ function App() {
 
       <main className="main-content">
         <header className="topbar">
-          <div className="breadcrumb">Workspace <span>/</span> {view === 'overview' ? 'Overview' : view === 'agents' ? 'Agent Registry' : 'Runs & Traces'}</div>
+          <div className="breadcrumb">Workspace <span>/</span> {view === 'overview' ? 'Overview' : VIEW_META[view].title}</div>
           <div className={`connection ${connected ? 'online' : ''}`}>
             <span className="connection-dot" />
             {connected ? 'API Connected' : loading ? 'Connecting...' : 'API Disconnected'}
@@ -214,14 +242,8 @@ function App() {
           <section className="page-heading">
             <div>
               <div className="eyebrow">AGENT INFRASTRUCTURE</div>
-              <h1>{view === 'overview' ? 'Control Plane Overview' : view === 'agents' ? 'Agent Registry' : 'Runs & Traces'}</h1>
-              <p>
-                {view === 'overview'
-                  ? 'Discover, observe, evaluate and secure your AI agents.'
-                  : view === 'agents'
-                    ? 'Manage registered agents backed by your PostgreSQL database.'
-                    : 'Submit durable investigations and inspect real execution status.'}
-              </p>
+              <h1>{VIEW_META[view].title}</h1>
+              <p>{VIEW_META[view].description}</p>
             </div>
             <div className="heading-actions">
               <button
@@ -310,7 +332,7 @@ function App() {
             </>
           )}
 
-          {view !== 'runs' && (
+          {(view === 'overview' || view === 'agents') && (
           <section className="panel">
             <div className="panel-heading">
               <div>
@@ -367,6 +389,8 @@ function App() {
           )}
 
           {view === 'runs' && <RunConsole agents={agents} />}
+
+          {view === 'evaluations' && <EvaluationDashboard />}
 
           {view === 'overview' && (
             <section className="roadmap-panel">

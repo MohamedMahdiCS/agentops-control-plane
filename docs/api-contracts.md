@@ -213,115 +213,49 @@ Trace identifiers support deep links from evaluation findings and security decis
 Only measured durations may be reported. Missing measurements must remain null.
 
 
-## 8. Create an Evaluation
+## 8. Evaluations (implemented, Day 12)
 
-### POST `/api/v1/runs/{run_id}/evaluations`
+All evaluation routes require an authenticated operator (`Authorization: Bearer`). Authentication runs before any database access. The client never supplies grader weights, thresholds, expected answers or allowed terminal states; these come from the versioned server-side scenario catalog.
 
-Queues an asynchronous evaluation of a recorded agent run.
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/api/v1/evaluations/cases` | List published scenario versions |
+| POST | `/api/v1/evaluations/cases/sync` | Publish missing scenario versions; verify existing ones are unchanged |
+| POST | `/api/v1/evaluations` | Grade a run against a scenario and append the result |
+| GET | `/api/v1/evaluations` | History, newest first (`run_id`, `scenario_key`, `verdict`, `limit` ≤ 100) |
+| GET | `/api/v1/evaluations/{evaluation_id}` | Full report with criteria, checks and evidence references |
+| GET | `/api/v1/evaluations/overview` | Aggregates computed from stored results only |
+| GET | `/api/v1/evaluations/compare?baseline_id=&candidate_id=` | Regression comparison |
 
-Request:
+### 8.1 Create an Evaluation
+
+`POST /api/v1/evaluations`
 
 ```json
-{
-  "evaluation_case_id": "63d789d6-62ac-45c0-950b-26cded70b4fd"
-}
+{ "run_id": "…", "scenario_key": "B01", "scenario_version": 1 }
 ```
 
-Successful response: HTTP 202 Accepted.
+`scenario_version` is optional and defaults to the latest published version. An optional `Idempotency-Key` header (8–128 characters) makes retries safe: an identical retry returns the stored result with HTTP 200; reusing the key for a different request returns HTTP 409.
 
-Response fields:
-- evaluation_result_id
-- run_id
-- evaluation_case_id
-- status: `queued`
-- score: null
-- verdict: null
+Responses:
 
-### 8.1 Evaluation Eligibility
+- `201 Created` with the full evaluation report and a `Location` header.
+- `404` unknown run or scenario.
+- `409` run not in a terminal state (`queued`, `running`, `awaiting_approval`), scenario not applicable to the run (different incident or execution mode), idempotency conflict, or a stored scenario version that differs from the published definition.
 
-A run is eligible for evaluation only when it has reached a terminal state supported by the selected evaluation case.
-
-Terminal run states:
-- `completed`
-- `failed`
-- `cancelled`
-
-Eligibility rules:
-
-- Standard diagnosis cases normally require `completed`.
-- Failure-handling cases may allow `completed` or `failed`.
-- Cancelled runs are eligible only when explicitly supported by the evaluation case.
-- Runs in `queued`, `running`, or `awaiting_approval` cannot receive a final evaluation.
-
-The trusted evaluation case defines its allowed terminal states in a versioned server-controlled configuration.
-
-The frontend cannot override these eligibility rules.
-
-An incompatible run or evaluation case returns HTTP 409 Conflict.
-
-Unknown run or case identifiers return HTTP 404.
+Deviation from the original plan: grading is deterministic and completes within the request, so results are stored directly with job status `completed` rather than queued asynchronously. The path is `/api/v1/evaluations` with `run_id` in the body or query instead of `/api/v1/runs/{run_id}/evaluations`.
 
 ### 8.2 Evaluation Independence
 
-Agent run status, evaluation job status, and evaluation verdict are distinct.
+Agent run status, evaluation job status, and evaluation verdict are distinct. A completed run does not automatically pass, and a failed run does not automatically fail: a safe stop passes when the scenario explicitly expects it (for example `F02`, retry exhaustion).
 
-A completed run does not automatically pass evaluation.
+### 8.3 Results and History
 
-A failed run does not automatically fail evaluation.
+Each result includes the scenario and grader versions, verdict (`passed`, `failed`, `inconclusive`), 0–100 score, passing threshold, safety-gate result, per-criterion checks with evidence references, linked trace-span IDs, and an evidence fingerprint. Regrading appends a new record; completed results are never modified. Re-grading identical evidence reproduces the same fingerprint and score.
 
-Safe termination counts as successful behavior only when the evaluation case explicitly permits it and recorded evidence supports that outcome.
+The comparison endpoint only compares results with the same scenario key, scenario version and grader version (otherwise HTTP 422) and reports verdict change, score delta, per-criterion deltas, per-check status changes, new or resolved safety violations, and a `regression` flag.
 
-### 8.3 Evaluation Execution
-
-The backend loads trusted evaluation criteria from the stored case.
-
-The client cannot supply:
-- Grader weights
-- Passing thresholds
-- Expected answers
-- Allowed terminal states
-
-Evaluation execution is asynchronous, durable, and retry-safe.
-
-The endpoint supports an optional `Idempotency-Key` header.
-
-An identical retry reuses the corresponding evaluation operation. Conflicting use of the same scoped key returns HTTP 409.
-
-The grader records its result separately from the agent execution status.
-
-
-## 9. Retrieve Evaluation Results
-
-### GET `/api/v1/runs/{run_id}/evaluations`
-
-Returns paginated evaluation results.
-
-Each result includes:
-- evaluation_result_id
-- evaluation_case_id
-- case_version
-- grader_version
-- status
-- verdict
-- score
-- passing_threshold
-- policy_gate_passed
-- criteria
-- evidence references
-- created_at
-- finished_at
-
-Evaluation job states:
-
-`queued`, `running`, `completed`, `failed`.
-
-Evaluation verdicts:
-
-`passed`, `failed`, `inconclusive`.
-
-A failed evaluation job is different from a completed evaluation with a failing verdict.
-
-Completed evaluations must preserve their original grading evidence. Regrading creates a new evaluation record.
+See `docs/evaluation-benchmarks.md` §20 for the grading rules.
 
 ## 10. Policy Decisions
 
