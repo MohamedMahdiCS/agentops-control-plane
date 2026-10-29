@@ -10,6 +10,8 @@ import fcntl
 import hashlib
 import json
 import logging
+import os
+import re
 import subprocess
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -61,6 +63,10 @@ class BenchmarkConfigurationError(ValueError):
 
 
 def git_revision() -> tuple[str | None, bool | None]:
+    # Container images have no .git directory; the build records the commit.
+    baked = os.environ.get("GIT_COMMIT_SHA", "").strip()
+    if re.fullmatch(r"[0-9a-f]{7,40}", baked):
+        return baked, None
     try:
         sha = subprocess.run(
             ["git", "rev-parse", "HEAD"],

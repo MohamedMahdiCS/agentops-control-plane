@@ -1,0 +1,76 @@
+# Production-like local stack: PostgreSQL, migrations, API, worker and console.
+#
+#   cp deploy/stack.env.example deploy/stack.env   # fill in the values
+#   GIT_COMMIT_SHA=$(git rev-parse HEAD) docker compose --env-file deploy/stack.env up --build
+#
+# The console is served on http://localhost:8080. The API and database are
+# not published to the host.
+name: agentops
+
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: agentops
+      POSTGRES_USER: agentops
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agentops -d agentops"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  migrate:
+    image: agentops-backend:local
+    build:
+      context: .
+      args:
+        GIT_COMMIT_SHA: ${GIT_COMMIT_SHA:-}
+    command: ["alembic", "upgrade", "head"]
+    environment: &backend-env
+      APP_ENV: production
+      DATABASE_URL: postgresql://agentops:${POSTGRES_PASSWORD}@db:5432/agentops
+      OPERATOR_TOKEN_SHA256: ${OPERATOR_TOKEN_SHA256:?Set OPERATOR_TOKEN_SHA256}
+      OPERATOR_ID: ${OPERATOR_ID:?Set OPERATOR_ID}
+      BENCHMARK_DATA_DIR: /app/data/benchmarks/runs
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    image: agentops-backend:local
+    environment: *backend-env
+    volumes:
+      - benchmarks:/app/data/benchmarks/runs
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  worker:
+    image: agentops-backend:local
+    command: ["python", "scripts/run_worker.py", "--worker-id", "compose-worker-1"]
+    environment: *backend-env
+    healthcheck:
+      disable: true
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    stop_grace_period: 30s
+
+  web:
+    build: ./frontend
+    ports:
+      - "${WEB_PORT:-8080}:8080"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  benchmarks:
