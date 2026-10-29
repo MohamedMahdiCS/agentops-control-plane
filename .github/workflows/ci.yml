@@ -29,7 +29,6 @@ jobs:
           --health-timeout 3s --health-retries 20
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/agentops_test
-      BENCHMARK_DATA_DIR: ${{ runner.temp }}/benchmarks
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
@@ -41,6 +40,8 @@ jobs:
       - run: uv run alembic upgrade head
       - run: uv run python scripts/test_backend.py
       - name: Deterministic benchmark release gate
+        env:
+          BENCHMARK_DATA_DIR: ${{ runner.temp }}/benchmarks
         run: |
           set -o pipefail
           uv run python scripts/run_benchmark.py --ensure-agent "CI Reference Agent" \
