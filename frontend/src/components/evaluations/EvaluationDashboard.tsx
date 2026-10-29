@@ -4,11 +4,8 @@ import {
   FlaskConical,
   Gauge,
   Layers,
-  LockKeyhole,
   Play,
-  RefreshCw,
   ShieldAlert,
-  ShieldCheck,
   Sigma,
 } from 'lucide-react'
 import {
@@ -26,6 +23,7 @@ import {
   type EvaluationOverview,
   type EvaluationSummary,
 } from '../../api'
+import OperatorAccess from '../OperatorAccess'
 import EvaluationComparison from './EvaluationComparison'
 import EvaluationReport from './EvaluationReport'
 import { SafetyGateBadge, ScoreBar, VerdictBadge } from './EvaluationPrimitives'
@@ -97,8 +95,7 @@ export default function EvaluationDashboard() {
     setHistory(historyResult.evaluations)
   }
 
-  async function unlock(event?: FormEvent<HTMLFormElement>) {
-    event?.preventDefault()
+  async function unlock() {
     if (!token || loading) return
 
     controller.current?.abort()
@@ -249,60 +246,22 @@ export default function EvaluationDashboard() {
 
   return (
     <div className="ev-dashboard">
-      <section className="panel trace-explorer" aria-label="Evaluation access">
-        <div className="panel-heading">
-          <div>
-            <h2>AgentOpsBench Evaluation Engine</h2>
-            <p>
-              Deterministic, evidence-linked grading of real runs against versioned
-              scenarios.
-            </p>
-          </div>
-          <span className="count-tag">
-            <ShieldCheck size={13} /> OPERATOR ACCESS
-          </span>
-        </div>
-
-        <div className="trace-access">
-          <div className="trace-access-heading">
-            <LockKeyhole size={18} />
-            <div>
-              <strong>Protected evaluation records</strong>
-              <p>
-                The operator token stays in memory for this view only and is never
-                written to browser storage.
-              </p>
-            </div>
-          </div>
-          <form className="trace-auth-form" onSubmit={(event) => void unlock(event)}>
-            <label htmlFor="evaluation-operator-token">Operator access token</label>
-            <div className="trace-auth-controls">
-              <input
-                id="evaluation-operator-token"
-                type="password"
-                value={token}
-                onChange={(event) => {
-                  tokenRef.current = event.target.value
-                  setToken(event.target.value)
-                }}
-                placeholder="Enter operator bearer token"
-                autoComplete="off"
-                spellCheck={false}
-                disabled={loading}
-              />
-              <button type="submit" className="button-primary" disabled={!token || loading}>
-                <RefreshCw size={15} className={loading ? 'spinning' : ''} />
-                {loading ? 'Loading…' : unlocked ? 'Refresh' : 'Unlock evaluations'}
-              </button>
-              {(token || unlocked) && (
-                <button type="button" className="button-secondary" onClick={lock}>
-                  Lock
-                </button>
-              )}
-            </div>
-          </form>
-        </div>
-
+      <OperatorAccess
+        inputId="evaluation-operator-token"
+        title="AgentOpsBench Evaluation Engine"
+        description="Deterministic, evidence-linked grading of real runs against versioned scenarios."
+        recordsLabel="Protected evaluation records"
+        token={token}
+        loading={loading}
+        unlocked={unlocked}
+        unlockLabel="Unlock evaluations"
+        onTokenChange={(value) => {
+          tokenRef.current = value
+          setToken(value)
+        }}
+        onUnlock={() => void unlock()}
+        onLock={lock}
+      >
         {error && (
           <div className="alert error" role="alert">
             <ShieldAlert size={18} />
@@ -315,7 +274,7 @@ export default function EvaluationDashboard() {
             <span>{notice}</span>
           </div>
         )}
-      </section>
+      </OperatorAccess>
 
       {!unlocked ? (
         <section className="ev-locked" aria-live="polite">

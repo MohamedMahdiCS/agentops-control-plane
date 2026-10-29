@@ -2,7 +2,7 @@
 
 **Version:** 0.1
 
-**Status:** Evaluation engine implemented (Day 12); benchmark runner pending
+**Status:** Evaluation engine (Day 12) and benchmark runner with replay (Day 13) implemented
 
 **Framework:** AgentOpsBench v1
 
@@ -679,3 +679,39 @@ A correctly denied unauthorized request is a working safeguard, not an automatic
 ### 20.5 Verification
 
 Covered by `tests/test_evaluation_grader.py` (pure grader and comparison), `tests/test_evaluations_api.py` (authentication, validation, error mapping) and `tests/test_evaluation_integration.py` (real worker runs and gateway decisions in `agentops_test`). No benchmark pass rates are claimed by this document.
+
+
+## 21. Implemented Benchmark Runner and Replay (Day 13)
+
+Implemented in `backend/app/benchmark/` (manifest, runner, analysis), `backend/app/api/v1/benchmarks.py`, `scripts/run_benchmark.py` and the **Benchmarks** dashboard view.
+
+### 21.1 Execution
+
+Each scenario runs through the production path: `create_agent_run` → durable worker → Tool Gateway → policy decisions and audit → grader. Scenario setup comes only from the versioned catalog:
+
+- **Faults** (F01, F02) use the existing `FaultInjectingSimulator` as the gateway's trusted read adapter.
+- **Injected requests** (S02, S03) use `HarnessInjection`, a trusted worker parameter that issues one request through the Tool Gateway at a given step. It cannot target read tools, and it is never agent-supplied.
+- **S03 clock control**: approval requests expire after 15 minutes. The harness moves the pending approval's deadline to the database clock and then calls the standard `expire_pending_approvals` service. The manifest records this in `harness_notes`.
+
+### 21.2 Reproducibility and Recovery
+
+- Runs and evaluations use stable scoped idempotency keys (`bench:<benchmark_run_id>:<scenario>:v<version>` and `…:eval`). Re-executing a benchmark, or resuming after a crash between a database write and a manifest write, reuses existing runs and evaluations instead of duplicating them or their side effects.
+- Runs are linked through `agent_runs.benchmark_run_id`.
+- Manifests live at `data/benchmarks/runs/<id>/manifest.json` (configurable with `BENCHMARK_DATA_DIR`; gitignored). Every update writes a temporary file, fsyncs it, atomically replaces the manifest and fsyncs the directory. A SHA-256 checksum covers the whole manifest; truncated, incompatible, modified or mismatched manifests are rejected and listed as corrupt rather than served.
+- One runner per machine is enforced with an exclusive file lock (HTTP 409 when busy).
+- Each scenario records an **outcome signature**: a digest of observable behaviour (run status, checkpoint, tool spans, policy decisions, approvals) and per-check grading statuses, excluding generated identifiers. Matching signatures across executions mean the behaviour and grading were reproduced.
+- **Replay** re-executes the exact scenario versions of a previous benchmark as a new benchmark linked by `replay_of`.
+
+### 21.3 Gates, Comparison and Performance
+
+- Gate A (platform) and Gate B (agent quality) follow §10; missing, interrupted or inconclusive required scenarios block a gate. Benchmark completion and gate outcome are reported separately.
+- Comparisons require matching suite version, grader version and execution mode. A scenario regresses when its verdict worsens, its score drops, it gains a safety violation or it no longer completes. Scenarios whose version changed are reported as not comparable rather than as regressions.
+- Performance figures are measured from persisted telemetry: run active time, wall time, tool request and failure counts, and nearest-rank p50/p95/max tool-span duration. They are local in-process simulator timings and are labelled as such.
+
+### 21.4 Interfaces
+
+- API: `GET/POST /api/v1/benchmarks`, `GET /api/v1/benchmarks/{id}`, `POST …/{id}/replay`, `POST …/{id}/resume`, `GET …/{id}/compare?baseline_id=`, `GET …/{id}/report.md` (operator-authenticated).
+- CLI: `uv run python scripts/run_benchmark.py --agent-id <uuid> [--scenarios B01 F01] [--label …]`, `--replay <id>`, `--resume <id>`. Exit code 0 when the overall gate passes, 1 when it fails or is blocked, 2 on configuration errors.
+- Reports: JSON manifest and Markdown report (configuration, gates, scenarios, notes, optional comparison, reproduction command).
+
+Tests: `tests/test_benchmark_analysis.py`, `tests/test_benchmarks_api.py`, `tests/test_benchmark_integration.py`.

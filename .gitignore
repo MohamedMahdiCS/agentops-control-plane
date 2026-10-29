@@ -37,6 +37,7 @@ temp/
 .cache/
 
 # Local databases / generated data
+data/benchmarks/runs/
 *.db
 *.sqlite
 *.sqlite3

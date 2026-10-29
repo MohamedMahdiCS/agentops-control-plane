@@ -4,7 +4,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from backend.app.runtime.investigation import ToolInvoker
-from backend.app.runtime.worker import process_claimed_run
+from backend.app.runtime.worker import HarnessInjection, process_claimed_run
 from backend.app.services.approval_expiration import expire_pending_approvals
 from backend.app.services.run_claims import claim_next_run
 from backend.app.simulator.registry import invoke_tool
@@ -23,6 +23,7 @@ async def run_worker_once(
     run_id: UUID | None = None,
     lease_seconds: int = 60,
     tool_invoker: ToolInvoker = invoke_tool,
+    injection: HarnessInjection | None = None,
 ) -> WorkerCycleResult:
     """Claim and process at most one eligible agent run.
 
@@ -52,6 +53,7 @@ async def run_worker_once(
         session_factory,
         claim,
         tool_invoker=tool_invoker,
+        injection=injection,
     )
 
     return WorkerCycleResult(

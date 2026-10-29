@@ -14,3 +14,6 @@ class Settings(BaseSettings):
     # Optional until authenticated operator endpoints are configured.
     operator_token_sha256: SecretStr | None = None
     operator_id: str | None = None
+
+    # Benchmark manifests (relative paths resolve from the project root).
+    benchmark_data_dir: str = "data/benchmarks/runs"

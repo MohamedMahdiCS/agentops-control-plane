@@ -6,6 +6,7 @@ import {
   ClipboardCheck,
   CircleAlert,
   Database,
+  Gauge,
   LayoutDashboard,
   LockKeyhole,
   Plus,
@@ -17,9 +18,10 @@ import {
 import { listAgents, registerAgent, type Agent } from './api'
 import RunConsole from './components/RunConsole'
 import EvaluationDashboard from './components/evaluations/EvaluationDashboard'
+import BenchmarkDashboard from './components/benchmarks/BenchmarkDashboard'
 import './App.css'
 
-type View = 'overview' | 'agents' | 'runs' | 'evaluations'
+type View = 'overview' | 'agents' | 'runs' | 'evaluations' | 'benchmarks'
 
 const VIEW_META: Record<View, { title: string; description: string }> = {
   overview: {
@@ -37,6 +39,10 @@ const VIEW_META: Record<View, { title: string; description: string }> = {
   evaluations: {
     title: 'Evaluations',
     description: 'Grade real runs against versioned scenarios with evidence-linked scores.',
+  },
+  benchmarks: {
+    title: 'Benchmarks & Replay',
+    description: 'Run reproducible scenario suites, replay them and detect regressions.',
   },
 }
 
@@ -211,6 +217,14 @@ function App() {
             onClick={() => setView('evaluations')}
           >
             <ClipboardCheck size={18} /> Evaluations
+          </button>
+
+          <button
+            type="button"
+            className={view === 'benchmarks' ? 'nav-item selected' : 'nav-item'}
+            onClick={() => setView('benchmarks')}
+          >
+            <Gauge size={18} /> Benchmarks
           </button>
 
           <div className="sidebar-label nav-divider">COMING NEXT</div>
@@ -391,6 +405,8 @@ function App() {
           {view === 'runs' && <RunConsole agents={agents} />}
 
           {view === 'evaluations' && <EvaluationDashboard />}
+
+          {view === 'benchmarks' && <BenchmarkDashboard agents={agents} />}
 
           {view === 'overview' && (
             <section className="roadmap-panel">

@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from time import perf_counter
 
 from pydantic import ValidationError
@@ -26,10 +27,29 @@ from backend.app.services.tool_gateway import (
     ToolReportedTimeoutError,
 )
 from backend.app.simulator.faults import SimulatedRateLimitError, SimulatedToolError
-from backend.app.simulator.registry import invoke_tool
+from backend.app.simulator.registry import TOOLS, invoke_tool
 
 ACTIVE_BUDGET_MS = 120_000
 STEP_TIMEOUT_SECONDS = 15
+
+
+@dataclass(frozen=True)
+class HarnessInjection:
+    """A trusted benchmark-harness request issued through the Tool Gateway.
+
+    It is configured by the benchmark runner, never by an agent, and exists to
+    test enforcement deterministically. Read tools are rejected because their
+    observations would bypass the investigation's evidence sequence.
+    """
+
+    after_step: int
+    tool_name: str
+    arguments: dict[str, object]
+
+    def __post_init__(self) -> None:
+        definition = TOOLS.get(self.tool_name)
+        if definition is not None and definition.permission == "read":
+            raise ValueError("Harness injections cannot target read tools")
 
 
 async def process_claimed_run(
@@ -37,6 +57,7 @@ async def process_claimed_run(
     claim: ClaimedRun,
     *,
     tool_invoker: ToolInvoker = invoke_tool,
+    injection: HarnessInjection | None = None,
 ) -> bool:
     """Execute a claimed deterministic run with durable checkpoints.
 
@@ -123,7 +144,31 @@ async def process_claimed_run(
     except (ValueError, ValidationError):
         return await fail("INVALID_EXECUTION_STATE")
 
+    async def inject_if_due(state: InvestigationCheckpoint) -> bool | None:
+        """Issue the harness request once; return a final result if it stops the run."""
+        if injection is None or state.next_step != injection.after_step:
+            return None
+        try:
+            await gateway.invoke(
+                injection.tool_name,
+                dict(injection.arguments),
+                checkpoint=state,
+                active_elapsed_ms=elapsed_ms(),
+                timeout_seconds=STEP_TIMEOUT_SECONDS,
+            )
+        except GatewayOwnershipError:
+            return False
+        except GatewayApprovalRequired:
+            return False
+        except GatewayDeniedError:
+            return await fail("TOOL_POLICY_DENIED")
+        raise RuntimeError("Harness injection was unexpectedly authorized")
+
     while state.next_step < len(plan):
+        stopped = await inject_if_due(state)
+        if stopped is not None:
+            return stopped
+
         if elapsed_ms() >= ACTIVE_BUDGET_MS:
             return await fail("EXECUTION_TIME_BUDGET")
 
@@ -198,6 +243,10 @@ async def process_claimed_run(
 
         if elapsed_ms() >= ACTIVE_BUDGET_MS:
             return await fail("EXECUTION_TIME_BUDGET")
+
+    stopped = await inject_if_due(state)
+    if stopped is not None:
+        return stopped
 
     try:
         report = build_investigation_report(

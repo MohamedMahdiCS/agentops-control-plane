@@ -411,3 +411,184 @@ export function compareEvaluations(
     { signal },
   )
 }
+
+// Benchmarks (operator-authenticated)
+
+export type GateStatus = 'passed' | 'failed' | 'blocked' | 'not_run'
+
+export interface GateDecision {
+  status: GateStatus
+  reasons: string[]
+}
+
+export interface ScenarioPerformance {
+  active_elapsed_ms: number
+  wall_elapsed_ms: number | null
+  tool_requests: number
+  tool_failures: number
+  denied_requests: number
+  tool_latency_p50_ms: number | null
+  tool_latency_p95_ms: number | null
+  tool_latency_max_ms: number | null
+  total_tool_ms: number
+}
+
+export interface BenchmarkScenario {
+  scenario_key: string
+  scenario_version: number
+  title: string
+  category: string
+  agent_quality: boolean
+  platform_assertions: boolean
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'interrupted' | 'skipped'
+  run_id: string | null
+  evaluation_id: string | null
+  run_status: string | null
+  error_code: string | null
+  verdict: EvaluationVerdict | null
+  score: number | null
+  policy_gate_passed: boolean | null
+  evidence_fingerprint: string | null
+  outcome_signature: string | null
+  performance: ScenarioPerformance | null
+  harness_notes: string[]
+  failure: string | null
+  started_at: string | null
+  finished_at: string | null
+}
+
+export interface BenchmarkManifest {
+  schema_version: number
+  benchmark_run_id: string
+  label: string
+  suite_version: string
+  simulator_version: string
+  grader_version: number
+  execution_mode: string
+  seed: number
+  agent_id: string
+  agent_config_version: number | null
+  git_commit_sha: string | null
+  git_dirty: boolean | null
+  replay_of: string | null
+  scenario_versions: Record<string, number>
+  status: 'pending' | 'running' | 'completed' | 'interrupted'
+  scenarios: BenchmarkScenario[]
+  gates: { platform: GateDecision; agent_quality: GateDecision; overall: GateDecision } | null
+  created_at: string
+  updated_at: string
+  checksum: string | null
+}
+
+export interface BenchmarkDetail {
+  manifest: BenchmarkManifest
+  performance: {
+    scenarios_measured: number
+    total_active_ms: number
+    total_tool_requests: number
+    total_tool_failures: number
+    max_tool_latency_ms: number | null
+  }
+}
+
+export interface BenchmarkSummary {
+  benchmark_run_id: string
+  label: string
+  status: BenchmarkManifest['status']
+  gate: GateStatus
+  replay_of: string | null
+  scenario_count: number
+  passed: number
+  failed: number
+  inconclusive: number
+  incomplete: number
+  git_commit_sha: string | null
+  created_at: string
+}
+
+export interface BenchmarkComparison {
+  baseline_id: string
+  candidate_id: string
+  regression: boolean
+  regressed_scenarios: string[]
+  fully_reproduced: boolean
+  baseline_gate: GateStatus
+  candidate_gate: GateStatus
+  scenarios: {
+    scenario_key: string
+    title: string
+    comparable: boolean
+    baseline_verdict: string | null
+    candidate_verdict: string | null
+    baseline_score: number | null
+    candidate_score: number | null
+    score_delta: number | null
+    behavior_reproduced: boolean
+    regression: boolean
+    new_safety_violation: boolean
+    baseline_active_ms: number | null
+    candidate_active_ms: number | null
+    notes: string[]
+  }[]
+}
+
+export function listBenchmarks(token: string, signal?: AbortSignal) {
+  return operatorRequest<{ benchmarks: BenchmarkSummary[]; corrupt_manifests: string[] }>(
+    '/api/v1/benchmarks',
+    token,
+    { signal },
+  )
+}
+
+export function getBenchmark(token: string, id: string, signal?: AbortSignal) {
+  return operatorRequest<BenchmarkDetail>(
+    `/api/v1/benchmarks/${encodeURIComponent(id)}`,
+    token,
+    { signal },
+  )
+}
+
+export function startBenchmark(
+  token: string,
+  input: { agent_id: string; scenario_keys?: string[]; label?: string },
+) {
+  return operatorRequest<BenchmarkDetail>('/api/v1/benchmarks', token, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
+}
+
+export function replayBenchmark(token: string, id: string) {
+  return operatorRequest<BenchmarkDetail>(
+    `/api/v1/benchmarks/${encodeURIComponent(id)}/replay`,
+    token,
+    { method: 'POST', body: JSON.stringify({}) },
+  )
+}
+
+export function compareBenchmarks(
+  token: string,
+  candidateId: string,
+  baselineId: string,
+  signal?: AbortSignal,
+) {
+  return operatorRequest<BenchmarkComparison>(
+    `/api/v1/benchmarks/${encodeURIComponent(candidateId)}/compare?baseline_id=${encodeURIComponent(baselineId)}`,
+    token,
+    { signal },
+  )
+}
+
+export async function downloadBenchmarkReport(
+  token: string,
+  id: string,
+  baselineId?: string,
+): Promise<string> {
+  const query = baselineId ? `?baseline_id=${encodeURIComponent(baselineId)}` : ''
+  const response = await fetch(
+    `/api/v1/benchmarks/${encodeURIComponent(id)}/report.md${query}`,
+    { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' },
+  )
+  if (!response.ok) throw new ApiError(response.status, '')
+  return response.text()
+}
