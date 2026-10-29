@@ -9,7 +9,10 @@ from backend.app.runtime.investigation import (
     execute_next_step,
 )
 from backend.app.runtime.plan import plan_for_incident
-from backend.app.runtime.reporting import build_investigation_report
+from backend.app.runtime.reporting import (
+    build_investigation_report,
+    format_report_summary,
+)
 from backend.app.services.run_checkpoints import save_run_checkpoint
 from backend.app.services.run_claims import ClaimedRun
 from backend.app.services.run_finalization import finalize_run
@@ -204,12 +207,7 @@ async def process_claimed_run(
     except (ValueError, ValidationError):
         return await fail("INVALID_INVESTIGATION_REPORT")
 
-    summary = (
-        f"Diagnosis: {report.diagnosis} "
-        f"Confidence: {report.confidence}. "
-        f"Evidence: {', '.join(report.evidence_ids)}. "
-        f"Recommendation: {report.recommendation}"
-    )
+    summary = format_report_summary(report)
 
     async with session_factory() as session:
         return await finalize_run(

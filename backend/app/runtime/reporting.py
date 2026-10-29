@@ -154,3 +154,13 @@ def build_investigation_report(
             "capacity, and timeout evidence before remediation."
         ),
     )
+
+
+def format_report_summary(report: InvestigationReport) -> str:
+    """Render the persisted run summary; evaluation reproduces it exactly."""
+    return (
+        f"Diagnosis: {report.diagnosis} "
+        f"Confidence: {report.confidence}. "
+        f"Evidence: {', '.join(report.evidence_ids)}. "
+        f"Recommendation: {report.recommendation}"
+    )
