@@ -222,7 +222,7 @@
 
 .bm-bar-label {
   color: #aab8d2;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 11px;
 }
 
