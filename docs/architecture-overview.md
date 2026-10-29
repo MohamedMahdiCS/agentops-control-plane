@@ -1,8 +1,8 @@
 # AgentOps Control Plane — Architecture Overview
 
-**Status:** Approved design — implementation pending
+**Status:** Implemented (MVP). Section 11 describes the system as built.
 
-**Version:** 0.1
+**Version:** 1.0
 
 ## 1. Purpose
 
@@ -29,7 +29,8 @@ The platform will provide:
 The system follows a modular monolith architecture.
 
 ### Frontend
-React, TypeScript, Vite, Tailwind CSS, shadcn/ui, TanStack Query, TanStack Table, and Recharts.
+React 19, TypeScript and Vite with a hand-built design system ("Midnight Precision"), plus vanilla
+Three.js for the agent constellation.
 
 ### Backend
 Python 3.12, FastAPI, Pydantic, and PostgreSQL.
@@ -115,3 +116,35 @@ Real infrastructure remediation, enterprise authentication, large-scale distribu
 ## 10. Engineering Objective
 
 Demonstrate practical skills in AI agent orchestration, backend architecture, evaluation infrastructure, observability, policy enforcement, reliability engineering, and frontend product development.
+
+
+## 11. As Built
+
+| Module | Implementation | Notes |
+|---|---|---|
+| Agent Registry | `api/v1/agents.py`, `services/agent_registry.py` | Cursor pagination |
+| Agent Runtime | `runtime/` | Deterministic reference plan, evidence checkpoints, retry and budget limits |
+| Durable worker | `services/run_claims.py`, `run_leases.py`, `run_checkpoints.py`, `run_finalization.py`, `scripts/run_worker.py` | `SKIP LOCKED` claims, leases with fencing generations |
+| Tool Gateway / Policy | `services/tool_gateway.py` | Default deny, incident-scoped resources, decision and audit committed before dispatch |
+| Approvals | `services/approval_decisions.py`, `approval_expiration.py`, `api/v1/approvals.py` | Action-scoped, expiring, operator-authenticated |
+| Traces | `api/v1/runs.py` (`/traces`) | Allowlisted span and audit views |
+| Evaluation Engine | `evaluation/` (catalog, grader, comparison), `services/evaluations.py` | Deterministic grader v1, see evaluation-benchmarks.md §20 |
+| Benchmark Runner | `benchmark/` (manifest, runner, analysis) | Replay, regression detection, release gates, §21 |
+| Configuration | `core/config.py`, `main.py` | Environment-aware validation, security headers |
+
+### Deployment shape
+
+One container image runs the API, the worker or migrations. nginx serves the console and proxies
+`/api`. See `docs/deployment.md`. CI (`.github/workflows/ci.yml`) runs backend and frontend
+quality checks, the deterministic benchmark release gate, dependency audits and container builds.
+
+### Differences from the original design
+
+- The frontend uses a custom CSS design system instead of Tailwind/shadcn, which keeps the bundle
+  small and the visual language consistent.
+- The "Security" and "Approvals" console sections are not separate pages yet. Approval decisions
+  are available through the API.
+- Execution is deterministic only. A model-driven agent mode is not implemented yet. Evaluations
+  and benchmarks clearly identify `deterministic` mode.
+- Benchmark state uses checksummed JSON manifests linked to runs by `benchmark_run_id`, as the
+  specification allowed, rather than a dedicated table.
