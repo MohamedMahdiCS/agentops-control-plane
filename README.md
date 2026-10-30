@@ -107,6 +107,12 @@ and safety-gate failures.
 </tr>
 </table>
 
+**Landing page**<br/>
+A public project page at `/site/` with the live constellation, capabilities, how a governed tool
+call works, and the evaluation engine.
+
+<img src="docs/assets/screenshots/landing.webp" alt="AgentOps landing page hero" />
+
 <sub>Screenshots come from the real console against a local demo database populated by
 <a href="scripts/demo/seed_demo.py">running the system itself</a> — no mocked values.</sub>
 
@@ -233,7 +239,7 @@ uv run python scripts/run_worker.py
 ```
 
 ```bash
-cd frontend && npm install && npm run dev      # http://localhost:5173
+cd frontend && npm install && npm run dev      # console: http://localhost:5173 · landing page: /site/
 ```
 
 Generate an operator token (keep the token; put only its digest in `.env`):
