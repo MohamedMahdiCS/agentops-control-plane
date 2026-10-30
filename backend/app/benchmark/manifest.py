@@ -179,3 +179,12 @@ class ManifestStore:
                 corrupt.append(entry.name)
         manifests.sort(key=lambda item: item.created_at, reverse=True)
         return manifests, sorted(corrupt)
+
+
+def configured_store() -> ManifestStore:
+    """Manifest store at BENCHMARK_DATA_DIR, resolved against the project root."""
+    from backend.app.core.config import Settings
+
+    configured = Path(Settings().benchmark_data_dir)
+    root = Path(__file__).resolve().parents[3]
+    return ManifestStore(configured if configured.is_absolute() else root / configured)

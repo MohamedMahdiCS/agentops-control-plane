@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import {
   CircleAlert,
   Download,
@@ -32,6 +32,7 @@ import {
   type GateStatus,
 } from '../../api'
 import OperatorAccess from '../OperatorAccess'
+import { useOperator } from '../../operator-context'
 import { ScoreBar, VerdictBadge } from '../evaluations/EvaluationPrimitives'
 import { formatTimestamp, shortId } from '../evaluations/format'
 import '../evaluations/evaluations.css'
@@ -186,7 +187,7 @@ function ScenarioRow({ scenario }: { scenario: BenchmarkScenario }) {
 }
 
 export default function BenchmarkDashboard({ agents }: { agents: Agent[] }) {
-  const [token, setToken] = useState('')
+  const { token, setToken, lock: lockSession } = useOperator()
   const [unlocked, setUnlocked] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -204,6 +205,7 @@ export default function BenchmarkDashboard({ agents }: { agents: Agent[] }) {
   const [chosen, setChosen] = useState<string[]>([])
   const [label, setLabel] = useState('')
   const loadToken = useRef(0)
+
 
   const effectiveAgent = activeAgents.find((agent) => agent.id === agentId)?.id ?? activeAgents[0]?.id ?? ''
   const scenarioKeys = useMemo(
@@ -250,7 +252,7 @@ export default function BenchmarkDashboard({ agents }: { agents: Agent[] }) {
 
   function lock() {
     loadToken.current += 1
-    setToken('')
+    lockSession()
     setUnlocked(false)
     setBenchmarks([])
     setSelected(null)
@@ -258,6 +260,14 @@ export default function BenchmarkDashboard({ agents }: { agents: Agent[] }) {
     setError('')
     setNotice('')
   }
+
+  // Reuse an operator session unlocked elsewhere in the console.
+  useEffect(() => {
+    if (!token) return
+    const timer = setTimeout(() => void unlock(), 0)
+    return () => clearTimeout(timer)
+    // Runs once on mount; later token edits wait for an explicit unlock.
+  }, []) // oxlint-disable-line react-hooks/exhaustive-deps
 
   async function launch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()

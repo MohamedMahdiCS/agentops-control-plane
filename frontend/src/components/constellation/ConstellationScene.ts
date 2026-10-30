@@ -6,8 +6,11 @@
  * motion is allowed and the canvas is on screen.
  */
 import {
+  AdditiveBlending,
   AmbientLight,
   BufferGeometry,
+  CanvasTexture,
+  Float32BufferAttribute,
   Group,
   IcosahedronGeometry,
   Line,
@@ -17,8 +20,12 @@ import {
   MeshStandardMaterial,
   PerspectiveCamera,
   PointLight,
+  Points,
+  PointsMaterial,
   Scene,
   SphereGeometry,
+  Sprite,
+  SpriteMaterial,
   TorusGeometry,
   Vector3,
   WebGLRenderer,
@@ -51,9 +58,10 @@ export interface ProjectedPoint {
 
 type Vec3 = [number, number, number]
 
-const ACTIVE = 0x65d9b1
-const IDLE = 0x8292bb
-const LINK = 0x4b6fb3
+const ACTIVE = 0x5ee7ff
+const IDLE = 0x7d82b8
+const LINK = 0x5b4dff
+const VIOLET = 0x7c6cff
 const FOV = 46
 
 /** Deterministic layout: an ellipse around the core, widest horizontally. */
@@ -94,6 +102,8 @@ export class ConstellationScene {
   private readonly resizeObserver: ResizeObserver
   private readonly disposables: { dispose: () => void }[] = []
   private nodes: NodeParts[] = []
+  private glowTexture!: CanvasTexture
+  private particles: Points | null = null
   private nodeScale = 1
   private selected: string | null = null
   private hovered: string | null = null
@@ -119,13 +129,15 @@ export class ConstellationScene {
     this.renderer.domElement.setAttribute('aria-hidden', 'true')
     container.appendChild(this.renderer.domElement)
 
-    this.scene.add(new AmbientLight(0xffffff, 0.65))
-    const key = new PointLight(0x6e9bff, 45)
+    this.scene.add(new AmbientLight(0xffffff, 0.55))
+    const key = new PointLight(0x8f84ff, 48)
     key.position.set(3, 4, 5)
-    const fill = new PointLight(0x8d70ef, 18)
+    const fill = new PointLight(0x3fd0ff, 20)
     fill.position.set(-4, -2, 2)
     this.scene.add(key, fill)
+    this.glowTexture = this.track(createGlowTexture())
     this.buildCore()
+    this.buildParticles()
 
     this.controls = new OrbitControls(this.camera, this.renderer.domElement)
     this.controls.enablePan = false
@@ -224,9 +236,9 @@ export class ConstellationScene {
       this.track(new IcosahedronGeometry(0.55, 2)),
       this.track(
         new MeshStandardMaterial({
-          color: 0x4978d8,
-          emissive: 0x335dc0,
-          emissiveIntensity: 0.75,
+          color: 0x5b4dff,
+          emissive: 0x4b3df0,
+          emissiveIntensity: 0.9,
           metalness: 0.65,
           roughness: 0.18,
         }),
@@ -234,16 +246,65 @@ export class ConstellationScene {
     )
     const inner = new Mesh(
       this.track(new TorusGeometry(0.85, 0.011, 8, 96)),
-      this.track(new MeshBasicMaterial({ color: 0x8b7dff, transparent: true, opacity: 0.55 })),
+      this.track(new MeshBasicMaterial({ color: 0xb6a8ff, transparent: true, opacity: 0.6 })),
     )
     inner.rotation.x = Math.PI / 3
     const outer = new Mesh(
       this.track(new TorusGeometry(1.05, 0.006, 8, 96)),
-      this.track(new MeshBasicMaterial({ color: 0x6fd8ff, transparent: true, opacity: 0.3 })),
+      this.track(new MeshBasicMaterial({ color: 0x5ee7ff, transparent: true, opacity: 0.35 })),
     )
     outer.rotation.set(-Math.PI / 5, Math.PI / 4, 0)
-    this.core.add(body, inner, outer)
+    const halo = this.glow(VIOLET, 3.4, 0.85)
+    const haze = this.glow(0x5ee7ff, 5.2, 0.18)
+    this.core.add(haze, halo, body, inner, outer)
     this.scene.add(this.core)
+  }
+
+  /** Additive light halo; reads as glow without post-processing passes. */
+  private glow(color: number, size: number, opacity: number): Sprite {
+    const material = this.track(
+      new SpriteMaterial({
+        map: this.glowTexture,
+        color,
+        transparent: true,
+        opacity,
+        blending: AdditiveBlending,
+        depthWrite: false,
+      }),
+    )
+    const sprite = new Sprite(material)
+    sprite.scale.setScalar(size)
+    return sprite
+  }
+
+  /** A slow field of faint particles that gives the scene depth. */
+  private buildParticles(): void {
+    const count = 260
+    const positions = new Float32Array(count * 3)
+    let seed = 7
+    const random = () => ((seed = (seed * 16807) % 2147483647) / 2147483647)
+    for (let i = 0; i < count; i += 1) {
+      const radius = 2.6 + random() * 4.2
+      const theta = random() * Math.PI * 2
+      const phi = Math.acos(2 * random() - 1)
+      positions[i * 3] = radius * Math.sin(phi) * Math.cos(theta)
+      positions[i * 3 + 1] = radius * Math.cos(phi) * 0.55
+      positions[i * 3 + 2] = radius * Math.sin(phi) * Math.sin(theta)
+    }
+    const geometry = this.track(new BufferGeometry())
+    geometry.setAttribute('position', new Float32BufferAttribute(positions, 3))
+    const material = this.track(
+      new PointsMaterial({
+        color: 0xb6a8ff,
+        size: 0.035,
+        transparent: true,
+        opacity: 0.6,
+        blending: AdditiveBlending,
+        depthWrite: false,
+      }),
+    )
+    this.particles = new Points(geometry, material)
+    this.scene.add(this.particles)
   }
 
   private createNode(agent: ConstellationAgent, base: Vec3, phase: number): NodeParts {
@@ -272,9 +333,20 @@ export class ConstellationScene {
     ring.rotation.x = Math.PI / 2
     halo.add(glow, ring)
     halo.visible = false
-    group.add(halo, body)
+    const aura = new Sprite(
+      new SpriteMaterial({
+        map: this.glowTexture,
+        color,
+        transparent: true,
+        opacity: agent.active ? 0.55 : 0.3,
+        blending: AdditiveBlending,
+        depthWrite: false,
+      }),
+    )
+    aura.scale.setScalar(1.35)
+    group.add(aura, halo, body)
 
-    const linkMaterial = new LineBasicMaterial({ color: LINK, transparent: true, opacity: 0.32 })
+    const linkMaterial = new LineBasicMaterial({ color: LINK, transparent: true, opacity: 0.45, blending: AdditiveBlending })
     const link = new Line(
       new BufferGeometry().setFromPoints([new Vector3(0, 0, 0), new Vector3(...base)]),
       linkMaterial,
@@ -309,7 +381,7 @@ export class ConstellationScene {
       node.body.scale.setScalar(emphasised ? 1.15 : 1)
       node.bodyMaterial.emissiveIntensity = emphasised ? 0.85 : 0.55
       node.linkMaterial.color.setHex(emphasised ? node.color : LINK)
-      node.linkMaterial.opacity = emphasised ? 0.6 : 0.32
+      node.linkMaterial.opacity = emphasised ? 0.85 : 0.45
     }
     this.requestRender()
   }
@@ -357,6 +429,7 @@ export class ConstellationScene {
     if (animate) {
       this.core.rotation.y = t * 0.15
       this.core.position.y = Math.sin(t * 0.7) * 0.05
+      if (this.particles) this.particles.rotation.y = t * 0.02
     }
     for (const node of this.nodes) {
       const bob = animate ? Math.sin(t * 1.1 + node.phase) * 0.07 : 0
@@ -435,4 +508,22 @@ export class ConstellationScene {
     if (this.hovered) this.options.onHover(null)
     document.body.style.cursor = ''
   }
+}
+
+function createGlowTexture(): CanvasTexture {
+  const size = 128
+  const canvas = document.createElement('canvas')
+  canvas.width = size
+  canvas.height = size
+  const context = canvas.getContext('2d')
+  if (context) {
+    const gradient = context.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2)
+    gradient.addColorStop(0, 'rgba(255,255,255,1)')
+    gradient.addColorStop(0.25, 'rgba(255,255,255,0.45)')
+    gradient.addColorStop(0.6, 'rgba(255,255,255,0.08)')
+    gradient.addColorStop(1, 'rgba(255,255,255,0)')
+    context.fillStyle = gradient
+    context.fillRect(0, 0, size, size)
+  }
+  return new CanvasTexture(canvas)
 }

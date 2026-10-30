@@ -36,6 +36,29 @@ export default function OperatorAccess({
     if (token && !loading) onUnlock()
   }
 
+  if (unlocked) {
+    return (
+      <section className="panel ng-access-compact" aria-label={`${title} access`}>
+        <div>
+          <h2>{title}</h2>
+          <p>{description}</p>
+        </div>
+        <div className="ng-access-actions">
+          <span className="ng-operator-chip is-unlocked">
+            <ShieldCheck size={14} aria-hidden="true" /> Operator session active
+          </span>
+          <button type="button" className="button-secondary" onClick={onUnlock} disabled={loading}>
+            <RefreshCw size={15} className={loading ? 'spinning' : ''} /> Refresh
+          </button>
+          <button type="button" className="button-secondary" onClick={onLock}>
+            Lock
+          </button>
+        </div>
+        {children}
+      </section>
+    )
+  }
+
   return (
     <section className="panel trace-explorer" aria-label={`${title} access`}>
       <div className="panel-heading">
