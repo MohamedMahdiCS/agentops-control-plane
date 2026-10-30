@@ -58,3 +58,10 @@ settings.
 - The worker logs each processed run and retries after unexpected errors. An abandoned run's
   lease expires and another worker recovers it.
 - Expired approvals are swept on every worker cycle.
+
+## Landing page (GitHub Pages)
+
+The public landing page is published to <https://mohamedmahdics.github.io/agentops-control-plane/>
+by `.github/workflows/pages.yml` on every push to `main` that touches `frontend/`. It builds only
+the static landing page (`npm run build:pages`, base path `/agentops-control-plane/`); the console
+and API are not deployed there.
