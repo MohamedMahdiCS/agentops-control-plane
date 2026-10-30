@@ -19,6 +19,7 @@ htmlcov/
 # Node / frontend
 node_modules/
 dist/
+dist-pages/
 build/
 .next/
 coverage/

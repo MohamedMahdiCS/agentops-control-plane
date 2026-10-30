@@ -4,6 +4,8 @@
 
 **Run, govern, evaluate and replay AI agents — with every number backed by recorded evidence.**
 
+[**Live project page →**](https://mohamedmahdics.github.io/agentops-control-plane/)
+
 [![CI](https://github.com/MohamedMahdiCS/agentops-control-plane/actions/workflows/ci.yml/badge.svg)](https://github.com/MohamedMahdiCS/agentops-control-plane/actions/workflows/ci.yml)
 ![Python 3.12](https://img.shields.io/badge/python-3.12-3776ab)
 ![FastAPI](https://img.shields.io/badge/FastAPI-PostgreSQL-009688)
@@ -108,7 +110,7 @@ and safety-gate failures.
 </table>
 
 **Landing page**<br/>
-A public project page at `/site/` with the live constellation, capabilities, how a governed tool
+The [public project page](https://mohamedmahdics.github.io/agentops-control-plane/) (`/site/` locally), with the live constellation, capabilities, how a governed tool
 call works, and the evaluation engine.
 
 <img src="docs/assets/screenshots/landing.webp" alt="AgentOps landing page hero" />
