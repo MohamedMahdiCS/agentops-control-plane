@@ -592,3 +592,18 @@ export async function downloadBenchmarkReport(
   if (!response.ok) throw new ApiError(response.status, '')
   return response.text()
 }
+
+// Control-plane overview (operator-authenticated)
+
+export interface ControlPlaneOverview {
+  generated_at: string
+  runs: { total: number; by_status: Record<string, number>; last_24h: number; hourly: number[] }
+  evaluations: { total: number; passed: number; failed: number; inconclusive: number; pass_rate: number | null }
+  pending_approvals: number
+  latest_benchmark: { benchmark_run_id: string; label: string; gate: GateStatus; created_at: string } | null
+  recent_events: { id: string; event_type: string; actor_type: string; run_id: string | null; created_at: string }[]
+}
+
+export function getControlPlaneOverview(token: string, signal?: AbortSignal) {
+  return operatorRequest<ControlPlaneOverview>('/api/v1/overview', token, { signal })
+}

@@ -273,6 +273,10 @@ All routes require an authenticated operator.
 
 Errors: 404 unknown benchmark, 409 another benchmark running or manifest failed integrity validation, 422 invalid configuration (unknown scenario, disabled agent).
 
+### 8.5 Control-Plane Overview (implemented)
+
+`GET /api/v1/overview` (operator-authenticated) returns aggregates computed from stored records only: run counts by status, runs per hour over the last 24 hours, evaluation verdict totals and pass rate (inconclusive results count as not passed), pending approvals, the latest benchmark's overall release gate, and the 15 most recent audit events (type, actor category, run ID and time only; payloads and actor identities are never exposed). The console's Overview polls it every 10 seconds while operator mode is unlocked.
+
 ## 10. Policy Decisions
 
 ### GET `/api/v1/runs/{run_id}/policy-decisions`

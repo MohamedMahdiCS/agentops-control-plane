@@ -12,6 +12,7 @@ import {
   type RunTraceResponse,
   type RunTraceSpan,
 } from '../api'
+import { useOperator } from '../operator-context'
 
 interface TraceExplorerProps {
   runId: string
@@ -43,7 +44,7 @@ function formatDuration(duration: number | null): string {
 }
 
 export default function TraceExplorer({ runId }: TraceExplorerProps) {
-  const [token, setToken] = useState('')
+  const { token, setToken, lock: lockSession } = useOperator()
   const [data, setData] = useState<RunTraceResponse | null>(null)
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -53,6 +54,14 @@ export default function TraceExplorer({ runId }: TraceExplorerProps) {
   useEffect(() => {
     return () => controllerRef.current?.abort()
   }, [])
+
+  // Reuse an operator session unlocked elsewhere in the console.
+  useEffect(() => {
+    if (!token) return
+    const timer = setTimeout(() => void loadTraces(), 0)
+    return () => clearTimeout(timer)
+    // Runs once on mount; later token edits wait for an explicit unlock.
+  }, []) // oxlint-disable-line react-hooks/exhaustive-deps
 
   const timeline = useMemo(() => {
     if (!data) return []
@@ -115,7 +124,7 @@ export default function TraceExplorer({ runId }: TraceExplorerProps) {
   function lockExplorer() {
     controllerRef.current?.abort()
     controllerRef.current = null
-    setToken('')
+    lockSession()
     setData(null)
     setSelectedKey(null)
     setError('')

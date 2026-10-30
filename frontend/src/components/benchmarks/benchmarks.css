@@ -12,10 +12,10 @@
   border: 1px solid transparent;
 }
 
-.bm-gate--passed { color: #49d6a0; background: rgba(73, 214, 160, 0.12); border-color: rgba(73, 214, 160, 0.32); }
+.bm-gate--passed { color: #49d6b5; background: rgba(73, 214, 181, 0.12); border-color: rgba(73, 214, 181, 0.32); }
 .bm-gate--failed { color: #ff7a8a; background: rgba(255, 122, 138, 0.12); border-color: rgba(255, 122, 138, 0.32); }
 .bm-gate--blocked { color: #f4c17a; background: rgba(244, 193, 122, 0.12); border-color: rgba(244, 193, 122, 0.32); }
-.bm-gate--not_run { color: #94a3b8; background: #17223a; border-color: #263552; }
+.bm-gate--not_run { color: #9496b8; background: #15183c; border-color: #242754; }
 
 .bm-runs {
   list-style: none;
@@ -34,14 +34,14 @@
   padding: 12px 14px;
   text-align: left;
   color: inherit;
-  border: 1px solid rgba(136, 159, 207, 0.16);
+  border: 1px solid rgba(136, 141, 207, 0.16);
   border-radius: 12px;
-  background: rgba(8, 15, 30, 0.5);
+  background: rgba(3, 5, 23, 0.5);
   transition: border-color 160ms ease, background 160ms ease;
 }
 
 .bm-run:hover {
-  border-color: #34466a;
+  border-color: #31356d;
 }
 
 .bm-run.is-selected {
@@ -72,7 +72,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  color: #7d8ea9;
+  color: #7d80a9;
   font-size: 11px;
 }
 
@@ -81,13 +81,13 @@
   gap: 6px;
   margin: 4px 0;
   padding: 10px 12px;
-  border: 1px solid rgba(136, 159, 207, 0.16);
+  border: 1px solid rgba(136, 141, 207, 0.16);
   border-radius: 10px;
 }
 
 .bm-scenarios legend {
   padding: 0 4px;
-  color: #aebdd7;
+  color: #aeb1d7;
   font-size: 12px;
   font-weight: 600;
 }
@@ -96,7 +96,7 @@
   display: flex;
   align-items: center;
   gap: 9px;
-  color: #c3cde0;
+  color: #c3c5e0;
   font-size: 12px;
   font-weight: 500 !important;
   cursor: pointer;
@@ -123,13 +123,13 @@
 .bm-gate-card {
   padding: 14px 16px;
   border-radius: 12px;
-  border: 1px solid rgba(136, 159, 207, 0.16);
-  background: rgba(8, 15, 30, 0.55);
+  border: 1px solid rgba(136, 141, 207, 0.16);
+  background: rgba(3, 5, 23, 0.55);
 }
 
 .bm-gate-card--failed { border-color: rgba(255, 122, 138, 0.35); }
 .bm-gate-card--blocked { border-color: rgba(244, 193, 122, 0.35); }
-.bm-gate-card--passed { border-color: rgba(73, 214, 160, 0.28); }
+.bm-gate-card--passed { border-color: rgba(73, 214, 181, 0.28); }
 
 .bm-gate-card-top {
   display: flex;
@@ -143,18 +143,18 @@
 .bm-gate-card ul {
   margin: 10px 0 0;
   padding-left: 16px;
-  color: #93a3bf;
+  color: #9396bf;
   font-size: 11.5px;
   line-height: 1.55;
 }
 
 .bm-table th[scope='row'] strong small {
-  color: #7d8ea9;
+  color: #7d80a9;
   font-weight: 500;
 }
 
 .bm-table code {
-  color: #c3cff0;
+  color: #c9c3f0;
   font-size: 11px;
 }
 
@@ -187,13 +187,13 @@
   margin: 0;
   padding: 16px;
   border-radius: 14px;
-  border: 1px solid rgba(136, 159, 207, 0.16);
-  background: rgba(8, 15, 30, 0.55);
+  border: 1px solid rgba(136, 141, 207, 0.16);
+  background: rgba(3, 5, 23, 0.55);
 }
 
 .bm-bars figcaption {
   margin-bottom: 12px;
-  color: #dbe3f5;
+  color: #dedbf5;
   font-size: 12.5px;
   font-weight: 700;
 }
@@ -221,7 +221,7 @@
 }
 
 .bm-bar-label {
-  color: #aab8d2;
+  color: #aaadd2;
   font-family: var(--font-mono);
   font-size: 11px;
 }
@@ -245,7 +245,7 @@
 }
 
 .bm-bar-value {
-  color: #dfe6f6;
+  color: #e2dff6;
   font-size: 11.5px;
   font-variant-numeric: tabular-nums;
   text-align: right;
@@ -261,9 +261,9 @@
   max-width: 280px;
   padding: 8px 10px;
   border-radius: 8px;
-  border: 1px solid #34466a;
-  background: #0b1426;
-  color: #a9b7cf;
+  border: 1px solid #31356d;
+  background: #04061e;
+  color: #a9accf;
   font-size: 11px;
   line-height: 1.45;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
@@ -271,7 +271,7 @@
 }
 
 .bm-tooltip strong {
-  color: #e8edf8;
+  color: #eae8f8;
 }
 
 .bm-footnote {
@@ -279,7 +279,7 @@
   align-items: center;
   gap: 6px;
   margin: -6px 0 0;
-  color: #7d8ea9;
+  color: #7d80a9;
   font-size: 11px;
 }
 
@@ -287,8 +287,8 @@
   margin: 0;
   padding: 12px 14px 12px 30px;
   border-radius: 10px;
-  background: rgba(8, 15, 30, 0.55);
-  color: #93a3bf;
+  background: rgba(3, 5, 23, 0.55);
+  color: #9396bf;
   font-size: 11.5px;
   line-height: 1.6;
 }
@@ -304,7 +304,7 @@
   flex-wrap: wrap;
   gap: 10px;
   padding-top: 6px;
-  border-top: 1px solid rgba(136, 159, 207, 0.16);
+  border-top: 1px solid rgba(136, 141, 207, 0.16);
 }
 
 .bm-compare-head h3 {
@@ -317,9 +317,9 @@
   max-width: 100%;
   margin-top: 10px;
   padding: 9px 12px;
-  color: #f1f5ff;
-  background: #0a1427;
-  border: 1px solid #334563;
+  color: #f3f1ff;
+  background: #04061e;
+  border: 1px solid #313465;
   border-radius: 10px;
   font-size: 12px;
 }

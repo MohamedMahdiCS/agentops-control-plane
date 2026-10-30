@@ -1,6 +1,5 @@
 """Operator-authenticated benchmark execution, replay and comparison."""
 
-from pathlib import Path
 from typing import Annotated
 from uuid import UUID
 
@@ -18,14 +17,13 @@ from backend.app.benchmark.manifest import (
     ManifestCorruptError,
     ManifestNotFoundError,
     ManifestStore,
+    configured_store,
 )
 from backend.app.benchmark.runner import (
-    PROJECT_ROOT,
     BenchmarkBusyError,
     BenchmarkConfigurationError,
     BenchmarkRunner,
 )
-from backend.app.core.config import Settings
 from backend.app.core.operator_auth import OperatorPrincipal, require_operator
 from backend.app.schemas.benchmarks import (
     BenchmarkComparison,
@@ -43,10 +41,7 @@ Operator = Annotated[OperatorPrincipal, Depends(require_operator)]
 
 
 def get_manifest_store(principal: Operator) -> ManifestStore:
-    configured = Path(Settings().benchmark_data_dir)
-    return ManifestStore(
-        configured if configured.is_absolute() else PROJECT_ROOT / configured
-    )
+    return configured_store()
 
 
 Store = Annotated[ManifestStore, Depends(get_manifest_store)]

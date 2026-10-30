@@ -1,29 +1,34 @@
-import { lazy, Suspense, useCallback, useEffect, useState, type FormEvent } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 import {
   Activity,
   Bot,
   CheckCircle2,
   ClipboardCheck,
   CircleAlert,
-  Database,
   Gauge,
+  Hexagon,
+  KeyRound,
   LayoutDashboard,
   LockKeyhole,
   Plus,
   RefreshCw,
+  Search,
   ShieldCheck,
-  Workflow,
   X,
 } from 'lucide-react'
 import { listAgents, registerAgent, type Agent } from './api'
+import CommandPalette, { type Command } from './components/CommandPalette'
+import { LiveEventStream, OverviewDataProvider, OverviewKpis } from './components/overview/OverviewLive'
+import { useOperator } from './operator-context'
 import './App.css'
+import './styles/neural-glass.css'
 
 type View = 'overview' | 'agents' | 'runs' | 'evaluations' | 'benchmarks'
 
 const VIEW_META: Record<View, { title: string; description: string }> = {
   overview: {
-    title: 'Control Plane Overview',
-    description: 'Discover, observe, evaluate and secure your AI agents.',
+    title: 'Agents you can prove',
+    description: 'Run, govern, evaluate and replay AI agents. Every number here comes from recorded evidence.',
   },
   agents: {
     title: 'Agent Registry',
@@ -96,6 +101,24 @@ function App() {
   const [formError, setFormError] = useState('')
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
+  const [paletteOpen, setPaletteOpen] = useState(false)
+  const { token, lock } = useOperator()
+
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault()
+        setPaletteOpen((open) => !open)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
+  function focusUnlock() {
+    setView('overview')
+    setTimeout(() => document.getElementById('overview-operator-token')?.focus(), 120)
+  }
 
   const refreshAgents = useCallback(async (signal?: AbortSignal) => {
     try {
@@ -145,10 +168,21 @@ function App() {
     return () => controller.abort()
   }, [])
 
-  const activeAgents = agents.filter((agent) => agent.status === 'active').length
-  const incidentAgents = agents.filter(
-    (agent) => agent.agent_type === 'incident_response',
-  ).length
+  const commands: Command[] = useMemo(
+    () => [
+      { id: 'overview', label: 'Go to overview', icon: <LayoutDashboard size={16} />, run: () => setView('overview') },
+      { id: 'agents', label: 'Go to agent registry', icon: <Bot size={16} />, run: () => setView('agents') },
+      { id: 'runs', label: 'Go to runs and traces', icon: <Activity size={16} />, run: () => setView('runs') },
+      { id: 'evaluations', label: 'Go to evaluations', icon: <ClipboardCheck size={16} />, run: () => setView('evaluations') },
+      { id: 'benchmarks', label: 'Go to benchmarks', icon: <Gauge size={16} />, run: () => setView('benchmarks') },
+      { id: 'register', label: 'Register an agent', hint: 'Action', icon: <Plus size={16} />, run: () => { setFormError(''); setShowForm(true) } },
+      token
+        ? { id: 'lock', label: 'Lock operator mode', hint: 'Security', icon: <LockKeyhole size={16} />, run: lock }
+        : { id: 'unlock', label: 'Unlock operator mode', hint: 'Security', icon: <KeyRound size={16} />, run: focusUnlock },
+    ],
+    // focusUnlock and setters are stable for the palette's purposes.
+    [token, lock], // oxlint-disable-line react-hooks/exhaustive-deps
+  )
 
   async function handleCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -193,7 +227,7 @@ function App() {
     <div className="app-shell">
       <aside className="sidebar">
         <div className="brand">
-          <div className="brand-mark"><Workflow size={23} /></div>
+          <div className="brand-mark"><Hexagon size={22} /></div>
           <div>
             <strong>AgentOps</strong>
             <span>CONTROL PLANE</span>
@@ -250,26 +284,44 @@ function App() {
           </div>
         </nav>
 
-        <div className="sidebar-bottom">
-          <span className="environment-dot" />
-          LOCAL DEVELOPMENT
-          <small>FastAPI · PostgreSQL · React</small>
+        <div className="ng-system-status" role="status">
+          <strong>
+            <span className={`ng-pulse ${connected ? '' : 'is-off'}`} aria-hidden="true" />
+            {connected ? 'All systems nominal' : loading ? 'Connecting…' : 'API unreachable'}
+          </strong>
+          <span>FastAPI · PostgreSQL · Worker</span>
         </div>
       </aside>
 
       <main className="main-content">
         <header className="topbar">
           <div className="breadcrumb">Workspace <span>/</span> {view === 'overview' ? 'Overview' : VIEW_META[view].title}</div>
-          <div className={`connection ${connected ? 'online' : ''}`}>
-            <span className="connection-dot" />
-            {connected ? 'API Connected' : loading ? 'Connecting...' : 'API Disconnected'}
+          <div className="ng-topbar-actions">
+            <button type="button" className="ng-command" onClick={() => setPaletteOpen(true)} aria-label="Open command palette">
+              <Search size={14} aria-hidden="true" />
+              <span className="ng-command-label">Search or jump to…</span>
+              <kbd>⌘K</kbd>
+            </button>
+            {token ? (
+              <button type="button" className="ng-operator-chip is-unlocked" onClick={lock} title="Lock operator mode">
+                <ShieldCheck size={14} aria-hidden="true" /> Operator
+              </button>
+            ) : (
+              <button type="button" className="ng-operator-chip" onClick={focusUnlock} title="Unlock operator mode">
+                <KeyRound size={14} aria-hidden="true" /> Locked
+              </button>
+            )}
+            <div className={`connection ${connected ? 'online' : ''}`}>
+              <span className="connection-dot" />
+              {connected ? 'API online' : loading ? 'Connecting…' : 'API offline'}
+            </div>
           </div>
         </header>
 
         <div className="page-content">
           <section className="page-heading">
             <div>
-              <div className="eyebrow">AGENT INFRASTRUCTURE</div>
+              <div className="eyebrow">{view === 'overview' ? 'AI AGENT CONTROL PLANE' : 'AGENT INFRASTRUCTURE'}</div>
               <h1>{VIEW_META[view].title}</h1>
               <p>{VIEW_META[view].description}</p>
             </div>
@@ -318,50 +370,25 @@ function App() {
           )}
 
           {view === 'overview' && (
-            <>
-              <section className="stats-grid" aria-label="Live statistics">
-                <div className="stat-card">
-                  <div className="stat-icon blue"><Bot size={19} /></div>
-                  <div className="stat-label">Agents loaded</div>
-                  <div className="stat-number">{loading && !connected ? '—' : agents.length}{hasMore && '+'}</div>
-                  <div className="stat-foot">From the Agent Registry API</div>
-                </div>
-                <div className="stat-card">
-                  <div className="stat-icon green"><CheckCircle2 size={19} /></div>
-                  <div className="stat-label">Active agents</div>
-                  <div className="stat-number">{loading && !connected ? '—' : activeAgents}</div>
-                  <div className="stat-foot">Currently registered as active</div>
-                </div>
-                <div className="stat-card">
-                  <div className="stat-icon purple"><Activity size={19} /></div>
-                  <div className="stat-label">Incident response</div>
-                  <div className="stat-number">{loading && !connected ? '—' : incidentAgents}</div>
-                  <div className="stat-foot">Agents of this type</div>
-                </div>
-                <div className="stat-card">
-                  <div className="stat-icon amber"><Database size={19} /></div>
-                  <div className="stat-label">Backend connection</div>
-                  <div className="stat-number stat-status">{connected ? 'Online' : loading ? 'Checking' : 'Offline'}</div>
-                  <div className="stat-foot">FastAPI / PostgreSQL</div>
-                </div>
-              </section>
-
-              <Suspense
-                fallback={
-                  <section className="topology-loading" role="status">
-                    <span className="topology-loading-orb" aria-hidden="true" />
-                    Preparing the agent constellation…
-                  </section>
-                }
-              >
-                <AgentTopology3D agents={agents} />
-              </Suspense>
-
-              <div className="section-kicker">LIVE REGISTRY</div>
-            </>
+            <OverviewDataProvider>
+              <OverviewKpis agents={agents} loading={loading} />
+              <div className="ng-main-grid">
+                <Suspense
+                  fallback={
+                    <section className="topology-loading" role="status">
+                      <span className="topology-loading-orb" aria-hidden="true" />
+                      Preparing the agent constellation…
+                    </section>
+                  }
+                >
+                  <AgentTopology3D agents={agents} />
+                </Suspense>
+                <LiveEventStream />
+              </div>
+            </OverviewDataProvider>
           )}
 
-          {(view === 'overview' || view === 'agents') && (
+          {view === 'agents' && (
           <section className="panel">
             <div className="panel-heading">
               <div>
@@ -484,6 +511,8 @@ function App() {
           </footer>
         </div>
       </main>
+
+      <CommandPalette open={paletteOpen} commands={commands} onClose={() => setPaletteOpen(false)} />
 
       {showForm && (
         <div className="modal-backdrop">

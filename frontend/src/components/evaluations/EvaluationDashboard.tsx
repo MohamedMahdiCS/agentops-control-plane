@@ -24,6 +24,7 @@ import {
   type EvaluationSummary,
 } from '../../api'
 import OperatorAccess from '../OperatorAccess'
+import { useOperator } from '../../operator-context'
 import EvaluationComparison from './EvaluationComparison'
 import EvaluationReport from './EvaluationReport'
 import { SafetyGateBadge, ScoreBar, VerdictBadge } from './EvaluationPrimitives'
@@ -53,7 +54,7 @@ function lastRunId(): string {
 }
 
 export default function EvaluationDashboard() {
-  const [token, setToken] = useState('')
+  const { token, setToken, lock: lockSession } = useOperator()
   const [unlocked, setUnlocked] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -78,9 +79,17 @@ export default function EvaluationDashboard() {
   const retryKey = useRef<string | null>(null)
   const controller = useRef<AbortController | null>(null)
   // Filter reloads read the current token without refiring on every keystroke.
-  const tokenRef = useRef('')
+  const tokenRef = useRef(token)
 
   useEffect(() => () => controller.current?.abort(), [])
+
+  // Reuse an operator session unlocked elsewhere in the console.
+  useEffect(() => {
+    if (!token) return
+    const timer = setTimeout(() => void unlock(), 0)
+    return () => clearTimeout(timer)
+    // Runs once on mount; later token edits wait for an explicit unlock.
+  }, []) // oxlint-disable-line react-hooks/exhaustive-deps
 
   async function refreshData(activeToken: string, signal?: AbortSignal) {
     const [overviewResult, historyResult] = await Promise.all([
@@ -123,7 +132,7 @@ export default function EvaluationDashboard() {
   function lock() {
     controller.current?.abort()
     tokenRef.current = ''
-    setToken('')
+    lockSession()
     setUnlocked(false)
     setCases([])
     setOverview(null)

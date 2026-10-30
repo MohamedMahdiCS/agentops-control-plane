@@ -3,8 +3,8 @@
   --font-mono: "JetBrains Mono Variable", ui-monospace, SFMono-Regular, Menlo, monospace;
   font-family: var(--font-sans);
   font-feature-settings: "cv11", "ss01", "ss03";
-  color: #e8edf8;
-  background: #090e1a;
+  color: #eae8f8;
+  background: #040515;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -48,6 +48,6 @@ a {
 }
 
 ::selection {
-  background: #335bba;
+  background: #4533ba;
   color: white;
 }
